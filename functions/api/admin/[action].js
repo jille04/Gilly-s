@@ -1,3 +1,6 @@
+import { json as apiJson, readBody, requireMethod, HttpError, errorResponse } from '../../../server/http.mjs';
+import { orderPage, transitionOrder, saveTaxTreatment } from '../../../server/orders.mjs';
+
 const encoder = new TextEncoder();
 const cookieName = '__Host-gillys_admin';
 const lifetime = 8 * 60 * 60;
@@ -50,15 +53,34 @@ async function validSession(request, env) {
   return crypto.subtle.verify('HMAC', await sessionKey(env), signature, encoder.encode(match[1]));
 }
 
+async function manageStore(request, env, action) {
+  try {
+    requireMethod(request, action === 'orders' ? 'GET' : 'POST');
+    if (!adminConfigured(env)) throw new HttpError(503, 'Administrator sign-in is not configured.');
+    if (!await validSession(request, env)) throw new HttpError(401, 'Your administrator session expired. Sign in again.');
+    if (action === 'orders') return apiJson(await orderPage(env, new URL(request.url).searchParams));
+    const body = await readBody(request);
+    if (action === 'settings') return apiJson({ taxTreatment: await saveTaxTreatment(env, body.taxTreatment) });
+    return apiJson(await transitionOrder(env, body, env.ADMIN_USERNAME));
+  } catch (error) {
+    return errorResponse(error, []);
+  }
+}
+
+function adminConfigured(env) {
+  return /^[a-z0-9._-]{3,24}$/.test(env.ADMIN_USERNAME || '') &&
+    (env.ADMIN_PASSWORD?.length || 0) >= 16 && (env.ADMIN_SESSION_SECRET?.length || 0) >= 32;
+}
+
 export async function onRequest({ request, env, params }) {
   const { action } = params;
+  if (['orders', 'status', 'settings'].includes(action)) return manageStore(request, env, action);
   if (!['login', 'logout', 'session'].includes(action)) return json(null, 404);
   const method = action === 'session' ? 'GET' : 'POST';
   if (request.method !== method) return json(null, 405);
   if (method === 'POST' && request.headers.get('Origin') !== new URL(request.url).origin) return json(null, 403);
   if (action === 'logout') return json(null, 200, sessionCookie('', 0));
-  if (!/^[a-z0-9._-]{3,24}$/.test(env.ADMIN_USERNAME || '') ||
-      (env.ADMIN_PASSWORD?.length || 0) < 16 || (env.ADMIN_SESSION_SECRET?.length || 0) < 32) {
+  if (!adminConfigured(env)) {
     return json(null, 503);
   }
 
@@ -69,11 +91,9 @@ export async function onRequest({ request, env, params }) {
 
   let credentials;
   try {
-    const body = await request.text();
-    if (body.length > 4096) return json(null, 413);
-    credentials = JSON.parse(body);
-  } catch {
-    return json(null, 400);
+    credentials = await readBody(request, 4096);
+  } catch (error) {
+    return json(null, error instanceof HttpError ? error.status : 400);
   }
   if (typeof credentials?.username !== 'string' || typeof credentials?.password !== 'string') return json(null, 400);
   const matches = await equalCredentials(

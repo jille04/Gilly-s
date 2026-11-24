@@ -1,23 +1,28 @@
 # Gilly’s on Cloudflare Pages
 
-The deployable site lives in `public/`. The admin authentication endpoint lives in `functions/`. Customer accounts, orders, and tax settings still use browser-local storage.
+The website in `public/` uses Cloudflare Pages Functions for Supabase Auth, profiles, pickup requests, and the staff dashboard. Orders are saved with their original price breakdown and a pending status. Only staff can confirm a request. Older browser-only summaries stay on the device and are visible to the same customer after signing in. Customers who used the browser-only build need to register a Supabase account.
 
-## Local development
+## Configure secrets
 
-Copy `.env.example` to `.env` beside this README. Fill in the three settings.
+Copy `.env.example` to `.env` for local development. In Cloudflare, add these values under **Pages → Settings → Variables and Secrets** for each environment you deploy. Use encrypted secrets for the password, session-signing secret, and Supabase keys. Keep all filled-in environment files outside `public/` and out of GitHub.
 
-- `ADMIN_USERNAME` is the admin sign-in name. Use 3–24 lowercase letters, digits, periods, underscores, or hyphens.
-- `ADMIN_PASSWORD` is a new, unique password of at least 16 characters.
-- `ADMIN_SESSION_SECRET` is a separate random string of at least 32 characters. Generate one with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`.
+| Name | Value |
+| --- | --- |
+| `ADMIN_USERNAME` | Admin sign-in name, such as `gillys.admin` |
+| `ADMIN_PASSWORD` | A new unique password, at least 16 characters |
+| `ADMIN_SESSION_SECRET` | A separate random string, at least 32 characters |
+| `SUPABASE_URL` | The Gilly’s project's HTTPS API URL |
+| `SUPABASE_PUBLISHABLE_KEY` | The project's `sb_publishable_…` key from Supabase **Settings → API Keys** |
+| `SUPABASE_SECRET_KEY` | A dedicated `sb_secret_…` key from the same project, used only by Pages Functions |
 
-Run `npx wrangler pages dev public` from the project root. Open the localhost URL printed by Wrangler and go to `/admin/`. Keep `.env` outside `public/` and out of version control.
+Generate a session secret with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Rotating any administrator credential invalidates existing admin sessions.
 
-## Deploy
+## Deploy and test
 
-1. In Cloudflare Pages, add the three variables as **encrypted secrets** under **Settings → Variables and Secrets**. Configure the environment you are deploying to.
-2. From the project root, run `npx wrangler pages deploy public --project-name YOUR_PROJECT_NAME`. For a Git-connected Pages project, set the build output directory to `public`; Pages picks up the root-level `functions/` folder. The dashboard ZIP upload does not deploy Pages Functions.
-3. Open `/admin/` on the deployed site and sign in with the username and password you configured.
+1. The migration in `supabase/migrations/` has been applied to the Gilly’s project. Apply it only if deploying to a different project.
+2. Create a Git-connected **Cloudflare Pages** project using this repository and production branch `main`. Set the build command to `node tools/sync-order-catalog.mjs --check` and the build output directory to `public`. Add the environment values above before deploying the connected version. For local development, run `npx wrangler pages dev public`. For CLI deployment, use `npx wrangler pages deploy public --project-name YOUR_PROJECT_NAME` from the repository root.
+3. In Supabase **Authentication → URL Configuration**, set the Site URL to the deployed origin and allow the exact `https://YOUR_HOST/api/customer/confirmed` and `https://YOUR_HOST/api/customer/recovery` callback URLs. Add those paths for localhost only when testing. Keep email confirmation enabled and configure SMTP for customer confirmation and password reset emails.
+4. Open `/api/customer/settings` on the deployed origin to verify the Supabase connection. Then create and confirm a test customer account, place a pickup request, and use `/admin/` to confirm it. Check the updated status from the customer’s **My Orders** page.
+5. Configure a Cloudflare rate-limit rule for POST requests to `/api/admin/login` on the production hostname.
 
-The project uses one Cloudflare-managed administrator. Rotate `ADMIN_PASSWORD` in Pages to recover access. Password, username, or signing secret changes invalidate existing sessions when the updated configuration takes effect. Configure a Cloudflare rate-limit rule for POST requests to `/api/admin/login` on the production hostname.
-
-Use a new password if the previous static build was shared or published. Its embedded credential hashes are removed from this build.
+Run `node tools/sync-order-catalog.mjs` whenever pickup rules, prices, or the product catalog in `public/script.js` change. The generated server catalog ensures checkout recalculates the same estimate before saving an order.

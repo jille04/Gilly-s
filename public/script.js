@@ -20,7 +20,7 @@ const BUSINESS = Object.freeze({
   orderMinLeadDays: 2, // Meal plans / subscriptions; regular checkout has an earlier date option.
   illustrativeSameDayCutoffHour: 11,
   illustrativeSameDayEnabled: true,
-  acceptsPayments: true, // Cash at pickup; order details currently remain browser-local.
+  acceptsPayments: true, // Cash at pickup.
   supportEmail: 'support@example.invalid',
   offerDisclaimer: 'Package prices are estimates until confirmed',
 });
@@ -972,7 +972,6 @@ const PERIOD_SHARE = { Breakfast: 0.25, Lunch: 0.4, Dinner: 0.35 };
 // Ignore and discard that legacy state to prevent one person's choices appearing
 // for another visitor. Signed-out selections stay in memory until the tab closes;
 // signed-in drafts are isolated by account email.
-const LEGACY_SHARED_DRAFT_KEY = 'gillys2-demo-state';
 const ACCOUNT_DRAFT_PREFIX = 'gillys2-account-draft-v1:';
 
 const fresh = () => ({
@@ -1012,19 +1011,6 @@ const fresh = () => ({
     payment: 'cash_on_pickup',
   },
 });
-
-function draftSessionEmail() {
-  // Session is tab-scoped. A newly opened browser tab starts signed out.
-  try {
-    const session = JSON.parse(globalThis.sessionStorage?.getItem('gillys2-demo-session') || 'null');
-    const email = String(session?.email || '').trim().toLowerCase();
-    if (!email) return '';
-    const users = JSON.parse(globalThis.localStorage?.getItem('gillys2-demo-users') || '{}');
-    return users && Object.prototype.hasOwnProperty.call(users, email) ? email : '';
-  } catch {
-    return '';
-  }
-}
 
 function normalizeDraft(candidate) {
   const defaults = fresh();
@@ -1067,13 +1053,7 @@ function loadAccountDraft(email) {
   }
 }
 
-function restore() {
-  try { globalThis.localStorage?.removeItem(LEGACY_SHARED_DRAFT_KEY); } catch { }
-  const email = draftSessionEmail();
-  return email ? loadAccountDraft(email) : fresh();
-}
-
-const store = restore();
+const store = fresh();
 
 function draftSnapshot() {
   return {
@@ -1122,6 +1102,7 @@ const freshAuth = () => ({ values: {}, errors: {}, general: '', notice: '' });
 const ui = {
   auth: freshAuth(),
   authNext: null,
+  authSubmitting: false,
   cartReviewKind: 'cart',
   route: typeof location !== 'undefined' ? location.pathname : '/',
   category: 'All meals',
@@ -1135,6 +1116,8 @@ const ui = {
   addressAdding: false,
   checkoutAddressEditing: false,
   codSubmitting: false,
+  pendingOrder: null,
+  orderLoad: null,
   lastCodOrder: null,
   receiptOrderId: null,
   orders: [],
@@ -1196,263 +1179,107 @@ function clearDraft(kind) {
   persist();
 }
 
-// js/core/auth.js
-// src/core/auth.js
-/**
- * Demo-only account system. Accounts live in this browser's localStorage and
- * passwords are stored as PBKDF2 hashes, never in plain text. There is no
- * server, so this is not a production authentication system.
- */
-
-const USERS_KEY = 'gillys2-demo-users';
-const SESSION_KEY = 'gillys2-demo-session';
-let memorySession = null;
-const sessionArea = () => {
-  try { return globalThis.sessionStorage || null; } catch { return null; }
-};
-function readSession() {
-  try {
-    const raw = sessionArea()?.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : memorySession;
-  } catch { return memorySession; }
-}
-function writeSession(session) {
-  memorySession = session;
-  try { sessionArea()?.setItem(SESSION_KEY, JSON.stringify(session)); } catch { }
-}
-function removeSession() {
-  memorySession = null;
-  try { sessionArea()?.removeItem(SESSION_KEY); } catch { }
-  // Explicitly clear older persistent login data from past builds.
-  try { globalThis.localStorage?.removeItem(SESSION_KEY); } catch { }
-}
-// A previous version kept login sessions across browser restarts.
-// In this version signing in is per-tab, so shared computers open fresh.
-try { globalThis.localStorage?.removeItem(SESSION_KEY); } catch { }
-const ITERATIONS = 100000;
+// Customer credentials are handled by Supabase through the Pages API.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PH_MOBILE = /^09\d{9}$/;
+const CITY = 'City of Manila';
+let customerAccount = null;
+let profileSaving = false;
 
-const GENERIC_MISMATCH = 'Email or password does not match our records';
-const NO_SECURE_CONTEXT =
-  'Sign in is available on the secure Gilly’s website';
-const NO_STORAGE = 'Unable to save your account details. Please check your browser settings.';
+function currentSession() { return customerAccount; }
+function getAccount() { return customerAccount; }
 
-const storage = () => {
-  try {
-    return globalThis.localStorage || null;
-  } catch {
-    return null;
+async function customerApi(action, body, query = '') {
+  if (FILE_MODE) throw Error('Sign in on the Gilly’s website or run the Cloudflare local preview.');
+  const response = await fetch(new URL('api/customer/' + action + query, WEBSITE_ROOT), {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: 'no-store',
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = Error(data?.error || 'The Gilly’s connection is unavailable. Try again shortly.');
+    error.status = response.status;
+    throw error;
   }
-};
-
-function readJson(key, fallback) {
-  try {
-    const raw = storage()?.getItem(key);
-    const parsed = raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed === 'object' ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
+  return data;
 }
 
-function writeJson(key, value) {
-  try {
-    storage()?.setItem(key, JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
-  }
-}
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 
-const toHex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-
-const fromHex = (hex) => Uint8Array.from(String(hex).match(/.{2}/g) || [], (h) => parseInt(h, 16));
-
-const normalizeEmail = (value) =>
-  String(value || '')
-    .trim()
-    .toLowerCase();
-
-async function derivePasswordHash(password, salt) {
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) throw new Error('no-subtle-crypto');
-  const key = await subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, [
-    'deriveBits',
-  ]);
-  const bits = await subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: ITERATIONS, hash: 'SHA-256' },
-    key,
-    256,
-  );
-  return toHex(new Uint8Array(bits));
-}
-
-function validateSignUp(values = {}) {
+function validateSignUp(values) {
   const errors = {};
   const name = String(values.name || '').trim();
   const email = normalizeEmail(values.email);
   const phone = String(values.phone || '').replace(/[\s-]/g, '');
   const password = String(values.password || '');
-
-  if (name.length < 2) errors.name = 'Enter your full name';
+  if (name.length < 2 || name.length > 100) errors.name = 'Enter your full name (2–100 characters)';
   if (!EMAIL_PATTERN.test(email)) errors.email = 'Enter a valid email address';
-  if (phone && !PH_MOBILE.test(phone)) {
-    errors.phone = 'Enter an 11-digit mobile number starting with 09, or leave it blank';
-  }
-  if (password.length < 8) errors.password = 'Use at least 8 characters';
+  if (phone && !PH_MOBILE.test(phone)) errors.phone = 'Enter an 11-digit mobile number starting with 09, or leave it blank';
+  if (password.length < 8 || password.length > 72) errors.password = 'Use 8–72 characters';
   if (values.confirm !== password) errors.confirm = 'Passwords do not match';
   return errors;
 }
 
-function currentSession() {
-  const session = readSession();
-  return session && session.email ? session : null;
-}
-
-async function signUp(values = {}) {
-  const errors = validateSignUp(values);
+async function submitCustomerCredentials(kind, values, resetting) {
+  const email = normalizeEmail(values.email);
+  const password = values.password || '';
+  const errors = kind === 'signup' ? validateSignUp(values) : {};
+  if (!resetting && !EMAIL_PATTERN.test(email)) errors.email = 'Enter a valid email address';
+  if (kind === 'signin' && !password) errors.password = 'Enter your password';
+  if (resetting) {
+    if (password.length < 8 || password.length > 72) errors.password = 'Use 8–72 characters';
+    if (values.confirm !== password) errors.confirm = 'Passwords do not match';
+  }
   if (Object.keys(errors).length) return { ok: false, errors };
 
-  const email = normalizeEmail(values.email);
-  const users = readJson(USERS_KEY, {});
-  if (users[email]) {
-    return {
-      ok: false,
-      errors: { email: 'An account with this email already exists. Sign in instead' },
-    };
-  }
-
-  let record;
   try {
-    const salt = globalThis.crypto.getRandomValues(new Uint8Array(16));
-    record = {
-      name: String(values.name).trim(),
-      phone: String(values.phone || '').replace(/[\s-]/g, ''),
-      salt: toHex(salt),
-      hash: await derivePasswordHash(values.password, salt),
-      createdAt: new Date().toISOString(),
-    };
-  } catch {
-    return { ok: false, general: NO_SECURE_CONTEXT };
+    if (kind === 'signin') {
+      customerAccount = await customerApi('signin', { email, password });
+      return { ok: true, session: customerAccount };
+    }
+    if (kind === 'signup') {
+      await customerApi('signup', { name: values.name, email, phone: values.phone, password });
+      return { ok: true };
+    }
+    if (resetting) {
+      await customerApi('reset', { password });
+      customerAccount = null;
+      return { ok: true, passwordReset: true };
+    }
+    await customerApi('recover', { email });
+    return { ok: true, notice: 'If that email has an account, a reset link will arrive shortly. Open it in this same browser.' };
+  } catch (error) {
+    return { ok: false, general: error.message };
   }
-
-  users[email] = record;
-  if (!writeJson(USERS_KEY, users)) return { ok: false, general: NO_STORAGE };
-
-  // Creating an account does not sign the person in; they sign in next.
-  return { ok: true, account: { email, name: record.name } };
 }
 
-async function signIn(values = {}) {
-  const email = normalizeEmail(values.email);
-  const password = String(values.password || '');
-  const errors = {};
-  if (!EMAIL_PATTERN.test(email)) errors.email = 'Enter a valid email address';
-  if (!password) errors.password = 'Enter your password';
-  if (Object.keys(errors).length) return { ok: false, errors };
+async function signOut() {
+  await customerApi('logout', {});
+  customerAccount = null;
+}
 
-  const user = readJson(USERS_KEY, {})[email];
-  if (!user) return { ok: false, general: GENERIC_MISMATCH };
-
+async function updateAccountRecord(email, mutate) {
+  const account = getAccount();
+  if (!account || account.email !== email) return { ok: false, general: 'Sign in to update your account.' };
+  if (profileSaving) return { ok: false, general: 'A profile update is in progress. Please wait.' };
+  const updated = structuredClone(account);
+  mutate(updated);
+  profileSaving = true;
   try {
-    const hash = await derivePasswordHash(password, fromHex(user.salt));
-    if (hash !== user.hash) return { ok: false, general: GENERIC_MISMATCH };
-  } catch {
-    return { ok: false, general: NO_SECURE_CONTEXT };
+    const saved = await customerApi('profile', updated);
+    if (customerAccount === account) customerAccount = saved;
+    return { ok: true };
+  } catch (error) {
+    if (error.status === 409 && customerAccount === account) {
+      const latest = await customerApi('session').catch(() => null);
+      if (latest && customerAccount === account) customerAccount = latest;
+    }
+    return { ok: false, general: error.message };
+  } finally {
+    profileSaving = false;
   }
-
-  const session = { email, name: user.name };
-  writeSession(session);
-  return { ok: true, session };
-}
-
-function signOut() {
-  removeSession();
-}
-
-function requestPasswordReset(values = {}) {
-  const email = normalizeEmail(values.email);
-  if (!EMAIL_PATTERN.test(email)) {
-    return { ok: false, errors: { email: 'Enter a valid email address' } };
-  }
-  const bytes = new Uint32Array(1);
-  globalThis.crypto?.getRandomValues?.(bytes);
-  const otp = String(100000 + ((bytes[0] || Math.floor(Math.random() * 900000)) % 900000)).padStart(6, '0');
-  return {
-    ok: true,
-    reset: { email, otp, expiresAt: Date.now() + 10 * 60 * 1000 },
-    notice: `For this browser demo, use code ${otp}. In production, this code is sent to the email address.`,
-  };
-}
-
-async function resetPasswordWithOtp(values = {}, reset = null) {
-  const errors = {};
-  const otp = String(values.otp || '').replace(/\s/g, '');
-  const password = String(values.password || '');
-  if (!reset?.email || !reset?.otp || Date.now() > Number(reset.expiresAt)) {
-    return { ok: false, general: 'That code has expired. Request a new one and try again.' };
-  }
-  if (!/^\d{6}$/.test(otp)) errors.otp = 'Enter the 6-digit code';
-  else if (otp !== reset.otp) errors.otp = 'That code does not match';
-  if (password.length < 8) errors.password = 'Use at least 8 characters';
-  if (values.confirm !== password) errors.confirm = 'Passwords do not match';
-  if (Object.keys(errors).length) return { ok: false, errors };
-
-  const users = readJson(USERS_KEY, {});
-  const user = users[reset.email];
-  if (!user) return { ok: false, general: 'We could not reset that account. Check the email and request a new code.' };
-  try {
-    const salt = globalThis.crypto.getRandomValues(new Uint8Array(16));
-    user.salt = toHex(salt);
-    user.hash = await derivePasswordHash(password, salt);
-    user.passwordChangedAt = new Date().toISOString();
-  } catch {
-    return { ok: false, general: NO_SECURE_CONTEXT };
-  }
-  users[reset.email] = user;
-  return writeJson(USERS_KEY, users)
-    ? { ok: true, passwordReset: true }
-    : { ok: false, general: NO_STORAGE };
-}
-
-const CITY = 'City of Manila';
-
-function getAccount() {
-  const session = currentSession();
-  if (!session) return null;
-  const record = readJson(USERS_KEY, {})[session.email];
-  if (!record) return null;
-  return {
-    email: session.email,
-    name: record.name,
-    phone: record.phone || '',
-    addresses: Array.isArray(record.addresses) ? record.addresses : [],
-    demoReviews: Array.isArray(record.demoReviews) ? record.demoReviews : [],
-  };
-}
-
-function updateAccountRecord(email, mutate) {
-  const users = readJson(USERS_KEY, {});
-  const record = users[email];
-  if (!record) return false;
-  mutate(record);
-  users[email] = record;
-  return writeJson(USERS_KEY, users);
-}
-
-function updateContact(email, { name, phone } = {}) {
-  const cleanName = String(name || '').trim();
-  const cleanPhone = String(phone || '').replace(/[\s-]/g, '');
-  const ok = updateAccountRecord(email, (r) => {
-    if (cleanName.length >= 2) r.name = cleanName;
-    if (!cleanPhone || PH_MOBILE.test(cleanPhone)) r.phone = cleanPhone;
-  });
-  const session = currentSession();
-  if (ok && session && session.email === email) {
-    writeJson(SESSION_KEY, { ...session, name: readJson(USERS_KEY, {})[email].name });
-  }
-  return ok;
 }
 
 function validateAddress(values = {}) {
@@ -1476,12 +1303,12 @@ const newAddressId = () =>
   globalThis.crypto?.randomUUID?.() ||
   Math.random().toString(36).slice(2) + Date.now().toString(36);
 
-function addAddress(email, values = {}, { makeDefault = false } = {}) {
+async function addAddress(email, values = {}, { makeDefault = false } = {}) {
   const errors = validateAddress(values);
   if (Object.keys(errors).length) return { ok: false, errors };
 
   let saved = null;
-  const ok = updateAccountRecord(email, (r) => {
+  const result = await updateAccountRecord(email, (r) => {
     const list = Array.isArray(r.addresses) ? r.addresses : [];
     const becomesDefault = makeDefault || list.length === 0;
     const address = {
@@ -1499,13 +1326,13 @@ function addAddress(email, values = {}, { makeDefault = false } = {}) {
     r.addresses = [...list.map((a) => (becomesDefault ? { ...a, isDefault: false } : a)), address];
     saved = address;
   });
-  return ok ? { ok: true, address: saved } : { ok: false, general: NO_STORAGE };
+  return result.ok ? { ...result, address: saved } : result;
 }
 
-function updateAddress(email, id, values = {}, { makeDefault = false } = {}) {
+async function updateAddress(email, id, values = {}, { makeDefault = false } = {}) {
   const errors = validateAddress(values);
   if (Object.keys(errors).length) return { ok: false, errors };
-  const ok = updateAccountRecord(email, (r) => {
+  const result = await updateAccountRecord(email, (r) => {
     r.addresses = (r.addresses || []).map((a) =>
       a.id !== id
         ? makeDefault
@@ -1525,7 +1352,7 @@ function updateAddress(email, id, values = {}, { makeDefault = false } = {}) {
         },
     );
   });
-  return ok ? { ok: true } : { ok: false, general: NO_STORAGE };
+  return result;
 }
 
 function setDefaultAddress(email, id) {
@@ -2275,12 +2102,12 @@ function authModal() {
   const info = ui.overlay;
   if (!info || info.type !== 'auth') return '';
   const mode = ['signin', 'signup', 'forgot'].includes(info.mode) ? info.mode : 'signin';
-  const resetStep = mode === 'forgot' && !!ui.auth.reset?.email;
+  const resetStep = mode === 'forgot' && ui.auth.reset === true;
   const copy = {
     signin: ['Welcome back', 'Sign in to pick up where you left off.'],
     signup: ['Join Gilly’s', 'Create an account to save your details and orders.'],
     forgot: resetStep
-      ? ['Reset your password', `Enter the one-time code for ${ui.auth.reset.email}.`]
+      ? ['Reset your password', 'Choose a new password for your account.']
       : ['Reset your password', 'Enter the email address linked to your account.'],
   }[mode];
   const forms = {
@@ -2309,14 +2136,13 @@ function authModal() {
     forgot: `
 ${resetStep ? `
 <form id="reset-password-form" class="auth-form" novalidate>
-  ${authField('otp', 'One-time password (OTP)', 'text', 'inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" required')}
   ${authPassword('password', 'New password', 'new-password')}
   ${authPassword('confirm', 'Confirm new password', 'new-password')}
   <button type="submit" class="btn btn-primary full">Reset password</button>
 </form>` : `
 <form id="forgot-form" class="auth-form" novalidate>
   ${authField('email', 'Email address', 'email', 'autocomplete="email" placeholder="e.g. maria@example.com" required')}
-  <button type="submit" class="btn btn-primary full">Send one-time code</button>
+  <button type="submit" class="btn btn-primary full">Send reset link</button>
 </form>`}
 <div class="auth-links">
   <button type="button" class="auth-link-btn" data-action="auth-mode" data-mode="signin">Back to sign in</button>
@@ -2369,13 +2195,11 @@ function toast() {
     : '';
 }
 
-// A shared tax classification can be selected by an Administrator. In this
-// static build the selection is specific to this browser, not a public backend.
-const TAX_TREATMENT_KEY = 'gillys-tax-treatment-v1';
-function gillysTaxTreatment() {
-  let value = null;
-  try { value = JSON.parse(localStorage.getItem(TAX_TREATMENT_KEY)); } catch { /* unavailable */ }
-  return ['vat-inclusive', 'non-vat'].includes(value) ? value : 'unconfigured';
+let sharedTaxTreatment = 'unconfigured';
+function gillysTaxTreatment() { return sharedTaxTreatment; }
+async function refreshTaxTreatment() {
+  const { taxTreatment } = await customerApi('settings');
+  sharedTaxTreatment = taxTreatment;
 }
 function pesoRound(value) { return Math.round((Number(value) + Number.EPSILON) * 100) / 100; }
 function orderTaxParts(subtotal, discount = 0, treatment = gillysTaxTreatment()) {
@@ -4036,8 +3860,6 @@ function setCustomCheckoutAddress() {
 }
 
 // js/core/orders.js
-// Gilly's uses browser-only COD order previews on local files and Cloudflare Pages.
-// These records stay in this browser. They are not delivered to the restaurant.
 function collectCodRequest(kind) {
   const account = getAccount();
   if (!account) throw new Error('Please sign in before saving an order.');
@@ -4108,13 +3930,14 @@ function collectCodRequest(kind) {
       deliveryFee: 0,
       ...orderTaxParts(cart ? cart.subtotal : scheduled.value, scheduled?.savings || 0),
     },
+    schedule: kind === 'plan'
+      ? { days: Number(store.plan.days), periods: [...store.plan.periods] }
+      : kind === 'subscription' ? { offerId: store.subscription.offerId } : null,
     // Displayed prices are estimates pending merchant verification.
     estimatedTotal: Math.round(Number(summary.total) * 100) / 100,
   };
 }
 
-// Local files and Cloudflare Pages both save order history in this browser.
-// Nothing is transmitted to the restaurant or to a server.
 const LOCAL_ORDERS_PREFIX = 'gillys-offline-orders-v1:';
 
 function publicOrderReference(order) {
@@ -4134,102 +3957,69 @@ function publicOrderReference(order) {
   return `GLY-${dateCode}-${(hash >>> 0).toString(16).toUpperCase().padStart(8, '0')}`;
 }
 
-function localOrdersForAccount(email) {
-  const scopedKey = LOCAL_ORDERS_PREFIX + normalizeEmail(email);
-  const records = readJson(scopedKey, []);
-  return Array.isArray(records) ? records : [];
+function legacyOrdersForAccount(email) {
+  try {
+    const records = JSON.parse(localStorage.getItem(LOCAL_ORDERS_PREFIX + normalizeEmail(email)) || '[]');
+    return Array.isArray(records) ? records.filter(order => order?.id && normalizeEmail(order.customer?.email) === email)
+      .map(order => ({ ...order, local_only: true })) : [];
+  } catch { return []; }
 }
 
-function saveLocalOrder(requestData) {
-  const email = normalizeEmail(requestData.customer.email);
-  // Give each browser-saved COD order a readable, stable Gilly's reference.
-  // A reference is not a restaurant-confirmed order: there is no server here.
-  const dateCode = new Date().toLocaleDateString('sv-SE', {
-    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Manila',
-  }).replace(/\D/g, '');
-  const randomBytes = new Uint8Array(5);
-  if (globalThis.crypto?.getRandomValues) {
-    globalThis.crypto.getRandomValues(randomBytes);
-  } else {
-    for (let i = 0; i < randomBytes.length; i++) randomBytes[i] = Math.floor(Math.random() * 256);
+async function submitCodRequest(preview) {
+  const signature = JSON.stringify(preview);
+  if (ui.pendingOrder?.signature !== signature) {
+    ui.pendingOrder = { signature, requestId: crypto.randomUUID() };
   }
-  const token = [...randomBytes].map((value) => value.toString(16).padStart(2, '0')).join('').toUpperCase();
-  const id = `GLY-${dateCode}-${token}`;
-  const record = {
-    id,
-    created_at: new Date().toISOString(),
-    status: 'Pending',
-    status_history: [{ status: 'Pending', changedAt: new Date().toISOString() }],
-    local_only: true,
-    kind: requestData.kind,
-    payment: 'cash_on_pickup',
-    fulfillment: 'customer_pickup',
-    pickup: requestData.pickup,
-    estimated_total: requestData.estimatedTotal,
-    delivery_date: requestData.pickup.date,
-    delivery_time: requestData.pickup.time,
-    customer: requestData.customer,
-    delivery: requestData.delivery,
-    items: requestData.items,
-    pricing: requestData.pricing,
-  };
-  const key = LOCAL_ORDERS_PREFIX + email;
-  const orders = [record, ...localOrdersForAccount(email)].slice(0, 100);
-  if (!storage() || !writeJson(key, orders)
-      || localOrdersForAccount(email)[0]?.id !== record.id) {
-    throw new Error('Your browser could not save the order. Enable site storage and try again.');
-  }
-  return record;
+  const order = await customerApi('order', {
+    requestId: ui.pendingOrder.requestId, kind: preview.kind, pickup: preview.pickup,
+    schedule: preview.schedule, estimatedTotal: preview.estimatedTotal,
+    taxTreatment: preview.pricing.taxTreatment,
+    items: preview.items.map(({ productId, quantity, custom, slot }) => ({ productId, quantity, custom, slot })),
+  });
+  ui.pendingOrder = null;
+  return order;
 }
 
-// Delivery receipt confirmation is an explicit customer action.
-// This updates the customer's own order only; it does not create a real
-// cross-device delivery notification without shared server-side storage.
-function confirmLocalOrderPickup(orderId, received) {
-  const account = getAccount();
-  if (!account || !orderId) return { ok: false, message: 'Please sign in to confirm pickup.' };
-  const email = normalizeEmail(account.email);
-  const key = LOCAL_ORDERS_PREFIX + email;
-  const orders = localOrdersForAccount(email);
-  const index = orders.findIndex((order) => order?.id === orderId
-    && normalizeEmail(order.customer?.email) === email);
-  if (index < 0) return { ok: false, message: 'This order is not available in your account.' };
-  const order = orders[index];
-  if (order.status !== 'Ready for Pickup') {
-    return { ok: false, message: 'This order has not been marked ready for pickup.' };
-  }
-  const now = new Date().toISOString();
-  const nextStatus = received ? 'Picked Up' : 'Pickup Issue';
-  orders[index] = {
-    ...order,
-    status: nextStatus,
-    pickup_confirmation: { received, confirmedAt: now, confirmedBy: email },
-    status_history: [
-      ...(Array.isArray(order.status_history) ? order.status_history : []),
-      { status: nextStatus, changedAt: now, changedBy: 'Customer' },
-    ],
-  };
-  if (!writeJson(key, orders)) {
-    return { ok: false, message: 'Could not save your pickup response. Please try again.' };
-  }
-  ui.orders = orders;
-  ui.ordersLoaded = true;
-  return { ok: true, status: nextStatus };
+async function confirmOrderPickup(orderId, received) {
+  const order = ui.orders.find(order => order.id === orderId);
+  if (!order || order.local_only) throw Error('This order is unavailable for pickup updates.');
+  const updated = await customerApi('pickup', { id: orderId, version: order.version, received });
+  ui.orders = ui.orders.map(order => order.id === updated.id ? updated : order);
+  if (ui.lastCodOrder?.id === updated.id) ui.lastCodOrder = updated;
 }
 
-async function submitCodRequest(kind) {
-  // Use exactly the same order-saving behavior on file:// and https://.
-  // No Cloudflare Worker, database binding, or /api/orders endpoint is required.
-  return saveLocalOrder(collectCodRequest(kind));
+function isOrderPage(path) {
+  return ['/orders', '/receipt', '/order-confirmation'].includes(path);
 }
 
 async function loadOrders() {
-  const account = getAccount();
-  ui.orders = account ? localOrdersForAccount(account.email) : [];
-  ui.ordersLoading = false;
-  ui.ordersLoaded = true;
+  const email = getAccount()?.email;
+  if (!email || ui.ordersLoading) return;
+  const load = Symbol();
+  ui.orderLoad = load;
+  ui.ordersLoading = true;
   ui.ordersError = '';
-  if (['/orders', '/receipt'].includes(currentPath())) render({ keepScroll: true });
+  try {
+    const orders = [];
+    let cursor = null;
+    do {
+      const result = await customerApi('orders', undefined, cursor ? '?after=' + encodeURIComponent(cursor) : '');
+      orders.push(...result.orders);
+      cursor = result.cursor;
+    } while (cursor && ui.orderLoad === load);
+    if (ui.orderLoad !== load) return;
+    ui.orders = [...orders, ...legacyOrdersForAccount(email)];
+    ui.ordersLoaded = true;
+  } catch (error) {
+    if (ui.orderLoad !== load) return;
+    ui.ordersError = error.message;
+    if (!ui.ordersLoaded) ui.orders = legacyOrdersForAccount(email);
+  } finally {
+    if (ui.orderLoad === load) {
+      ui.ordersLoading = false;
+      if (isOrderPage(currentPath())) render({ keepScroll: true });
+    }
+  }
 }
 
 // js/pages/checkout.js
@@ -4437,7 +4227,7 @@ function checkout(kind) {
             <span class="optional">
               (optional)
             </span>
-            <textarea data-checkout="instructions" rows="3" placeholder="Additional pickup requests (optional)">
+            <textarea data-checkout="instructions" maxlength="500" rows="3" placeholder="Additional pickup requests (optional)">
               ${escapeHtml(c.instructions)}
             </textarea>
           </label>
@@ -4455,7 +4245,7 @@ function checkout(kind) {
         <div class="checkout-errors" role="alert" id="checkout-errors" hidden>
         </div>
         <button class="btn btn-primary checkout-submit" type="submit">
-          Save Order Summary
+          Submit pickup request
         </button>
 
       </form>
@@ -4513,15 +4303,14 @@ function checkout(kind) {
 }
 
 function orderConfirmation() {
-  const account = getAccount();
-  const order = ui.lastCodOrder || (account ? localOrdersForAccount(account.email)[0] : null);
+  const order = getAccount() ? (ui.lastCodOrder || ui.orders[0]) : null;
   const price = order ? receiptBreakdown(order) : null;
   const contact = order ? receiptDetails(order) : null;
   return `
 <main class="wrap completed-page">
   <div class="completed-icon">${ico('check', 42)}</div>
   <span class="eyebrow">Gilly's · Customer Pickup</span>
-  <h1>${order ? 'Pickup summary saved' : 'Order summary'}</h1>
+  <h1>${order ? (order.local_only ? 'Pickup summary saved on this device' : 'Pickup request submitted') : 'Order summary'}</h1>
   ${order ? `
     <section class="g-confirmation-summary" aria-label="Saved pickup summary">
       <div class="g-confirmation-top">
@@ -4551,7 +4340,7 @@ function orderConfirmation() {
         <div class="g-confirmation-grand"><span>Total · Cash at Pickup</span><strong>${money(price.total)}</strong></div>
       </div>
     </section>
-    <p class="g-confirmation-notice">You can find this summary anytime in My Orders.</p>
+    <p class="g-confirmation-notice">${order.local_only ? 'This older summary is saved on this device only.' : 'Follow the status of your request in My Orders.'}</p>
   ` : '<p>View your saved pickup summaries under My Orders.</p>'}
   <div class="completed-links">
     ${order ? `<button type="button" class="btn btn-primary" data-action="order-receipt" data-id="${escapeHtml(order.id)}">View Full Summary</button>` : ''}
@@ -4834,13 +4623,13 @@ function orderHistory(account) {
   
   ${ui.ordersLoading ? '<p class="caption">Loading your orders…</p>' : ''}
   ${ui.ordersError ? `<p class="checkout-errors" role="alert">${escapeHtml(ui.ordersError)}</p>` : ''}
-  ${ui.ordersLoaded && !orders.length ? '<p class="caption">No saved order summaries yet.</p>' : ''}
+  ${ui.ordersLoaded && !orders.length ? '<p class="caption">No pickup requests yet.</p>' : ''}
   ${orders.map((order) => `
     <article class="demo-history-item">
       <div>
         <strong>${escapeHtml(publicOrderReference(order))}</strong>
         <small>${escapeHtml(new Date(order.created_at).toLocaleDateString('en-PH'))} · ${escapeHtml(order.kind === 'cart' ? 'Meals' : order.kind === 'plan' ? 'Meal plan' : 'Subscription cycle')}</small>
-        <small>Status: ${escapeHtml(order.status)}</small>
+        <small>${order.local_only ? 'Saved on this device only' : 'Status: ' + escapeHtml(order.status)}</small>
         ${order.status === 'Picked Up' && order.pickup_confirmation?.received
           ? '<small class="order-delivery-verified">Order pickup confirmed</small>' : ''}
         ${order.status === 'Pickup Issue'
@@ -4852,7 +4641,7 @@ function orderHistory(account) {
         <small>Pickup location: ${escapeHtml(order.pickup?.locationName || GILLYS_PICKUP_LOCATION)}</small>
       </div>
       <div class="order-history-actions">
-        ${order.status === 'Ready for Pickup' ? `
+        ${order.status === 'Ready for Pickup' && !order.local_only ? `
           <button type="button" class="btn btn-primary order-delivery-confirm-button" data-action="pickup-confirm-collected" data-id="${escapeHtml(order.id)}">Confirm Picked Up</button>
           <button type="button" class="btn btn-outline order-delivery-issue-button" data-action="pickup-report-issue" data-id="${escapeHtml(order.id)}">Report Pickup Issue</button>
         ` : ''}
@@ -5628,8 +5417,7 @@ function go(path) {
     navigateTo(target);
   }
   render({ scroll: true });
-  // Always refresh when the customer returns from the admin side of the same browser.
-  if (['/orders', '/receipt'].includes(target) && !ui.ordersLoading) loadOrders();
+  if (isOrderPage(target) && !ui.ordersLoading) loadOrders();
 }
 
 function dismissToast() {
@@ -5658,23 +5446,22 @@ async function submitAuth(kind, form) {
     values[el.dataset.auth] = el.value;
   });
 
-  const result =
-    kind === 'signin'
-      ? await signIn(values)
-      : kind === 'signup'
-        ? await signUp(values)
-        : ui.auth.reset
-          ? await resetPasswordWithOtp(values, ui.auth.reset)
-          : requestPasswordReset(values);
+  if (ui.authSubmitting) return;
+  const button = form.querySelector('[type="submit"]');
+  ui.authSubmitting = true;
+  if (button) button.disabled = true;
+  const result = await submitCustomerCredentials(kind, values, ui.auth.reset === true);
+  ui.authSubmitting = false;
+  if (button) button.disabled = false;
 
   if (result.ok && kind === 'signup') {
     ui.overlay = { type: 'auth', mode: 'signin' };
-    ui.auth = { ...freshAuth(), values: { email: values.email }, notice: 'Account created. Sign in with your email and password to continue' };
+    ui.auth = { ...freshAuth(), values: { email: values.email }, notice: 'If your account needs email confirmation, open the link from Gilly’s first, then sign in.' };
     render({ keepScroll: true });
     return;
   }
 
-  if (result.ok && kind !== 'forgot') {
+  if (result.ok && kind === 'signin') {
     activateAccountDraft(result.session.email, visitorDraft);
     const firstName = String(result.session.name).split(' ')[0];
     const next = ui.authNext;
@@ -5685,14 +5472,8 @@ async function submitAuth(kind, form) {
     if (next) go(next);
     else if (AUTH_ROUTES[ui.route]) go('/');
     else render({ keepScroll: true });
-    notify(kind === 'signup' ? `Welcome to Gilly’s, ${firstName}` : 'Welcome back');
-    return;
-  }
-
-  if (result.ok && kind === 'forgot' && result.reset) {
-    ui.auth = { ...freshAuth(), reset: result.reset, notice: result.notice || '' };
-    render({ keepScroll: true });
-    root.querySelector('[data-auth="otp"]')?.focus();
+    if (isOrderPage(currentPath())) loadOrders();
+    notify(firstName ? `Welcome back, ${firstName}` : 'Welcome back');
     return;
   }
 
@@ -5783,7 +5564,7 @@ function finishCheckout() {
   return { ok: true };
 }
 
-function submitAddress(form) {
+async function submitAddress(form) {
   const account = getAccount();
   if (!account) return;
   const values = {};
@@ -5801,9 +5582,10 @@ function submitAddress(form) {
   }
   const editing = ui.addressEditId;
   const result = editing
-    ? updateAddress(account.email, editing, values, { makeDefault: values.makeDefault })
-    : addAddress(account.email, values, { makeDefault: values.makeDefault });
+    ? await updateAddress(account.email, editing, values, { makeDefault: values.makeDefault })
+    : await addAddress(account.email, values, { makeDefault: values.makeDefault });
   if (!result.ok) {
+    render({ keepScroll: true });
     notify(result.general || 'Could not save this info');
     return;
   }
@@ -6076,7 +5858,7 @@ function askCustomerConfirmation({ title, message, confirmLabel = 'Yes, Confirm'
   });
 }
 
-function onAction(element, event) {
+async function onAction(element, event) {
   const action = element.dataset.action;
   const id = element.dataset.id;
   const kind = element.dataset.kind;
@@ -6234,12 +6016,16 @@ function onAction(element, event) {
           ? 'Have you received your order? Confirming will mark this order as Picked Up.'
           : 'Was your order unavailable or not released at the agreed pickup? Report it for review.',
         confirmLabel: received ? 'Yes, Confirm' : 'Report Issue',
-      }).then((approved) => {
+      }).then(async (approved) => {
         if (!approved) return;
-        const result = confirmLocalOrderPickup(id, received);
-        if (!result.ok) { notify(result.message); return; }
-        render({ keepScroll: true });
-        notify(received ? 'Pickup confirmed. Thank you!' : 'Pickup issue recorded.');
+        try {
+          await confirmOrderPickup(id, received);
+          render({ keepScroll: true });
+          notify(received ? 'Pickup confirmed. Thank you!' : 'Pickup issue recorded.');
+        } catch (error) {
+          notify(error.message);
+          if (error.status === 409) loadOrders();
+        }
       });
       break;
     }
@@ -6283,6 +6069,11 @@ function onAction(element, event) {
       break;
 
     case 'sign-out':
+      try { await signOut(); }
+      catch (error) { notify(error.message); break; }
+      ui.orderLoad = null;
+      ui.ordersLoading = false;
+      ui.pendingOrder = null;
       ui.orders = [];
       ui.ordersLoaded = false;
       ui.receiptOrderId = null;
@@ -6291,7 +6082,6 @@ function onAction(element, event) {
       ui.authNext = null;
       ui.addressEditId = null;
       ui.addressAdding = false;
-      signOut();
       applyDraft(fresh());
       ui.builder = freshBuild();
       ui.builderContext = null;
@@ -6394,16 +6184,19 @@ function onAction(element, event) {
 
     case 'address-default': {
       const account = getAccount();
-      if (account) setDefaultAddress(account.email, id);
+      if (!account) break;
+      const result = await setDefaultAddress(account.email, id);
       render({ keepScroll: true });
+      if (!result.ok) notify(result.general);
       break;
     }
 
     case 'address-remove': {
       const account = getAccount();
-      if (account) removeAddress(account.email, id);
+      if (!account) break;
+      const result = await removeAddress(account.email, id);
       render({ keepScroll: true });
-      notify('Address removed');
+      notify(result.ok ? 'Address removed' : result.general);
       break;
     }
 
@@ -6835,22 +6628,22 @@ root?.addEventListener('submit', async (event) => {
     const approved = await askCustomerConfirmation({
       title: 'Review Pickup Summary',
       message: 'Please review your meals, pickup schedule, and total.',
-      confirmLabel: 'Save Summary',
+      confirmLabel: 'Submit pickup request',
       detailsHtml: pickupConfirmationReview(preview),
       progress: 3,
     });
-    if (!approved) return;
+    if (!approved || ui.codSubmitting) return;
     const button = event.target.querySelector('[type="submit"]');
     ui.codSubmitting = true;
     if (button) {
       button.disabled = true;
-      button.textContent = 'Saving…';
+      button.textContent = 'Submitting…';
     }
     try {
-      const order = await submitCodRequest(kind);
+      const order = await submitCodRequest(preview);
       ui.lastCodOrder = order;
       ui.ordersLoaded = false;
-      ui.orders = localOrdersForAccount(getAccount()?.email || '');
+      ui.orders = [order, ...ui.orders.filter(entry => entry.id !== order.id)];
       ui.checkoutAddressEditing = false;
       store.checkout.addressId = null;
       store.checkout.deliveryOverride = null;
@@ -6873,30 +6666,24 @@ root?.addEventListener('submit', async (event) => {
       persist();
       go('/order-confirmation');
     } catch (error) {
-      const general = event.target.querySelector('#checkout-errors');
+      if (error.status === 409) {
+        await refreshTaxTreatment().catch(() => {});
+        render({ keepScroll: true });
+      }
+      const general = root.querySelector('#checkout-errors');
       if (general) {
         general.hidden = false;
         general.textContent = error.message || 'Could not submit your order. Please try again.';
       }
       if (button) {
         button.disabled = false;
-        button.textContent = 'Save Order Summary';
+        button.textContent = 'Submit pickup request';
       }
     } finally {
       ui.codSubmitting = false;
     }
   }
 
-});
-
-// Reflect admin changes made in another tab of this same browser and origin.
-window.addEventListener('storage', (event) => {
-  const account = getAccount();
-  if (!account || event.key !== LOCAL_ORDERS_PREFIX + normalizeEmail(account.email)) return;
-  ui.orders = localOrdersForAccount(account.email);
-  ui.ordersLoaded = true;
-  ui.ordersError = '';
-  if (['/orders', '/receipt'].includes(currentPath())) render({ keepScroll: true });
 });
 
 // Browser history popstate
@@ -6906,6 +6693,7 @@ window.addEventListener('popstate', () => {
   ui.mobileNav = false;
   ui.menu = null;
   render({ scroll: true });
+  if (isOrderPage(currentPath())) loadOrders();
 });
 
 // Browsers use hash history when previewing local HTML files.
@@ -7090,20 +6878,44 @@ function markRequired() {
   });
 }
 
-// Initial render
-ui.booting = true;
-render();
-{
-  const finishBoot = () => {
-    if (!ui.booting) return;
-    ui.booting = false;
-    if (['/', '/menu'].includes(ui.route)) render({ keepScroll: true });
-  };
+async function initializeSite() {
+  ui.booting = true;
+  if (!FILE_MODE) {
+    const url = new URL(location.href);
+    const callback = url.searchParams.get('auth');
+    if (callback) {
+      url.searchParams.delete('auth');
+      history.replaceState(history.state, '', url.href);
+    }
+    const [account] = await Promise.allSettled([customerApi('session'), refreshTaxTreatment()]);
+    if (account.status === 'fulfilled') {
+      customerAccount = account.value;
+      activateAccountDraft(customerAccount.email, draftSnapshot());
+    }
+    if (callback === 'reset') {
+      ui.overlay = { type: 'auth', mode: 'forgot' };
+      ui.auth = { ...freshAuth(), reset: true };
+    } else if (['confirmed', 'confirmation-error', 'expired'].includes(callback)) {
+      const messages = {
+        confirmed: 'Email confirmation complete. You can sign in.',
+        'confirmation-error': 'This confirmation link is unavailable. Try signing in or requesting a reset.',
+        expired: 'This reset link is unavailable. Request a new link and open it in this browser.',
+      };
+      ui.overlay = { type: 'auth', mode: callback === 'expired' ? 'forgot' : 'signin' };
+      ui.auth = { ...freshAuth(), notice: messages[callback] };
+    }
+  }
+  render();
+  if (isOrderPage(currentPath()) && getAccount()) loadOrders();
   Promise.race([document.fonts?.ready, new Promise((resolve) => setTimeout(resolve, 450))])
     .catch(() => {})
-    .then(() => setTimeout(finishBoot, 120));
+    .then(() => setTimeout(() => {
+      if (!ui.booting) return;
+      ui.booting = false;
+      if (['/', '/menu'].includes(ui.route) && !ui.overlay) render({ keepScroll: true });
+    }, 120));
 }
-if (['/orders', '/receipt'].includes(currentPath()) && getAccount()) loadOrders();
+initializeSite();
 
 })();
 

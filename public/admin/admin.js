@@ -1,15 +1,9 @@
-/*
- * Gilly's Website — Administration
- * Account and order data currently use per-browser storage. A secure shared
- * backend is required for live, synchronized restaurant operations.
- */
+/* Gilly's administration portal */
 (() => {
   'use strict';
 
   const FILE = location.protocol === 'file:';
   const ROOT = new URL('../', document.currentScript.src);
-  const STORAGE_PREFIX = 'gillys-offline-orders-v1:';
-  const USERS_KEY = 'gillys2-demo-users';
   const isAdmin = acc => acc?.role === 'admin' && acc.active;
   const canManageOrders = isAdmin;
   const roleLabel = () => 'Administrator';
@@ -36,11 +30,6 @@
   const monetary = (n) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(n || 0));
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
   const norm = (v) => String(v || '').trim().toLowerCase();
-  const read = (k, fallback) => {
-    try { const val = JSON.parse(localStorage.getItem(k)); return val == null ? fallback : val; }
-    catch { return fallback; }
-  };
-  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
   const dateText = (d) => { const dt = new Date(d); return isNaN(dt.getTime()) ? '—' : dt.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }); };
   const dateCode = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date(d));
   const brand = `<img class="ga-brand-logo" src="${new URL('assets/Cheerful Gilly Chef Mascot.png',ROOT).href}" alt="Gilly's chef mascot"/><span class="ga-brand-text"><b>gilly's</b><small>Good food, good days</small></span>`;
@@ -90,35 +79,61 @@
   const currentAdmin = () => admin;
   const adminsSession = () => Boolean(admin);
 
-  async function auth(action, credentials) {
-    const response = await fetch(new URL('api/admin/' + action, ROOT), {
-      method: action === 'session' ? 'GET' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: credentials ? JSON.stringify(credentials) : undefined,
+  let connectedOrders = [];
+  let taxTreatment = 'unconfigured';
+  let recordsError = '';
+  let refreshing = false;
+  const allOrders = () => connectedOrders;
+
+  async function auth(action, body, query = '') {
+    const readOnly = action === 'session' || action === 'orders';
+    const response = await fetch(new URL('api/admin/' + action + query, ROOT), {
+      method: readOnly ? 'GET' : 'POST',
+      headers: readOnly ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: 'no-store',
     });
     if (response.status === 401 && action === 'session') return null;
+    const result = await response.json().catch(() => null);
     if (!response.ok) {
-      throw Error(response.status === 401 ? 'Incorrect username or password.' : 'Administrator access is unavailable. Check the Cloudflare configuration.');
+      const error = Error(result?.error || (response.status === 401 && action === 'login'
+        ? 'Incorrect username or password.' : 'Administrator access is unavailable. Check the Cloudflare configuration.'));
+      error.status = response.status;
+      throw error;
     }
-    return response.json();
+    return result;
   }
 
-  function allOrders() {
-    const orders = [];
+  async function refreshRecords() {
+    if (refreshing || !currentAdmin()) return;
+    refreshing = true;
+    recordsError = '';
+    render();
     try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (!key?.startsWith(STORAGE_PREFIX)) continue;
-        const values = read(key, []);
-        if (!Array.isArray(values)) continue;
-        for (const o of values) {
-          if (!o || !o.id || !o.created_at) continue;
-          orders.push({ ...o, _key: key, _email: norm(o.customer?.email || key.slice(STORAGE_PREFIX.length)) });
-        }
-      }
-    } catch { /* Browser storage may be disabled. */ }
-    return orders.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+      const tax = fetch(new URL('api/customer/settings', ROOT), { cache: 'no-store' }).then(async response => {
+        if (!response.ok) throw Error('Could not load tax settings.');
+        return (await response.json()).taxTreatment;
+      });
+      const orders = (async () => {
+        const records = [];
+        let cursor = null;
+        do {
+          const result = await auth('orders', undefined, cursor ? '?after=' + encodeURIComponent(cursor) : '');
+          records.push(...result.orders);
+          cursor = result.cursor;
+        } while (cursor);
+        return records;
+      })();
+      [taxTreatment, connectedOrders] = await Promise.all([tax, orders]);
+    } catch (error) {
+      if (error.status === 401) { openPage('login'); return; }
+      recordsError = error.message;
+    } finally {
+      refreshing = false;
+      render();
+    }
   }
+
   function orderStatus(o) { return STATUSES.includes(o.status) ? o.status : 'Pending'; }
   const bowlCount = (o) => (o.items || []).filter(i => i.productId === 'custom-bowl').length;
   function typeKey(o) {
@@ -134,27 +149,14 @@
   function total(o) { return Number(o.estimated_total || 0); }
   function ref(o) { return o.id?.startsWith('LOCAL-') ? 'Legacy ' + o.id.slice(6) : o.id; }
   function pill(status) { return `<span class="ga-status ga-status-${esc(status.toLowerCase().replace(/\s+/g, '-'))}">${esc(status)}</span>`; }
-  function updateStatus(orderId, nextStatus) {
-    const me = currentAdmin();
-    if (!canManageOrders(me)) return false;
-    const order = allOrders().find(o => o.id === orderId);
-    if (!order || !NEXT[orderStatus(order)]?.includes(nextStatus)) return false;
-    const list = read(order._key, []);
-    const pos = list.findIndex(x => x?.id === orderId);
-    if (pos < 0) return false;
-    const old = list[pos];
-    const now = new Date().toISOString();
-    const base = Array.isArray(old.status_history) ? old.status_history : [{status:orderStatus(old), changedAt:old.created_at}];
-    // Preserve the original details and pricing snapshot.
-    list[pos] = { ...old, status: nextStatus, status_history: [...base, {status:nextStatus, changedAt:now, changedBy:me.username}] };
-    return write(order._key, list);
+  async function updateStatus(orderId, nextStatus) {
+    const order = allOrders().find(order => order.id === orderId);
+    if (!order || !NEXT[orderStatus(order)]?.includes(nextStatus)) return;
+    const updated = await auth('status', { id: orderId, version: order.version, nextStatus });
+    connectedOrders = connectedOrders.map(order => order.id === orderId ? updated : order);
   }
   function customers(orders) {
     const by = new Map();
-    const users = read(USERS_KEY, {});
-    for (const [email, rec] of Object.entries(users)) {
-      by.set(norm(email), {email:norm(email), name:rec.name||'Customer', phone:rec.phone||'', orders:[]});
-    }
     for (const order of orders) {
       const email = norm(order.customer?.email || order._email);
       if (!by.has(email)) by.set(email, {email, name:order.customer?.name||'Customer', phone:order.customer?.phone||'', orders:[]});
@@ -196,6 +198,8 @@
     <aside class="ga-sidebar"><a class="ga-brand" href="${urlFor('dashboard')}">${brand}</a>${nav(page)}<div class="ga-sidefoot"><p>Gilly’s Restaurant</p></div></aside>
     <div class="ga-workspace"><div class="ga-topline"><span>GILLY'S / ADMINISTRATION</span><span>${esc(currentAdmin()?.name||'')} · ${esc(roleLabel(currentAdmin()?.role||''))} · Cash at Pickup</span></div>
       <main class="ga-main"><header class="ga-pagehead"><div><p class="ga-eyebrow">RESTAURANT OPERATIONS</p><h1>${title}</h1><p>${subtitle}</p></div><button type="button" class="ga-btn ga-ghost" data-admin-action="refresh">Refresh records</button></header>
+      ${recordsError ? `<p class="ga-error" role="alert">${esc(recordsError)}</p>` : ''}
+      ${refreshing ? '<p role="status">Loading pickup records…</p>' : ''}
       ${content}</main></div>
     <div id="ga-modal-root"></div>
   </div>`;
@@ -289,7 +293,6 @@
     const bars=STATUSES.map(s=>{const n=orders.filter(o=>orderStatus(o)===s).length;
       return `<div class="ga-bar-line"><span>${s}</span><div class="ga-bar-bg"><div style="width:${(n/max)*100}%"></div></div><strong>${n}</strong></div>`;}).join('');
     const best=topItems(orders.filter(o=>orderStatus(o)==='Picked Up'));
-    const taxTreatment=read('gillys-tax-treatment-v1','unconfigured');
     return layout('reports','Order Value Reports','Order values by pickup status',`
       <section class="ga-stats ga-revenue">${stat('Today',monetary(r.day),'Picked Up today (PH time)')}${stat('Weekly (last 7 days)',monetary(r.week),'Picked Up in rolling 7 days')}${stat('Monthly (this month)',monetary(r.month),'Picked Up this month')}${stat('All-time picked up',monetary(r.total),`${r.delivered.length} picked-up order${r.delivered.length===1?'':'s'}`)}</section>
       ${revenueTables(orders)}
@@ -551,14 +554,15 @@
       catch (error) { alert(error.message); }
       return;
     }
-    if(act==='refresh'){render();return;}
+    if(act==='refresh'){await refreshRecords();return;}
     if(act==='filter-pending'){state.status='Pending';render();return;}
     if(act==='save-tax-treatment'){
       if(!isAdmin(currentAdmin()))return;
       const selected=document.getElementById('ga-tax-treatment')?.value;
       if(!['unconfigured','vat-inclusive','non-vat'].includes(selected))return;
       if(!await askAdminConfirmation({title:'Save Tax Settings?',message:'Apply this tax treatment to newly saved summaries? Existing summaries will keep their original totals.',confirmLabel:'Save Settings'}))return;
-      if(!write('gillys-tax-treatment-v1', selected)){alert('Unable to save tax settings.');return;}
+      try { taxTreatment = (await auth('settings', { taxTreatment: selected })).taxTreatment; }
+      catch (error) { alert(error.message); return; }
       state.taxFeedback='Tax settings saved.';
       render();return;
     }
@@ -567,8 +571,11 @@
     if(act==='print'){if(!isAdmin(currentAdmin()))return;const o=allOrders().find(o=>o.id===btn.dataset.id);if(o)printOrder(o);return;}
     if(act==='status'){
       if(!await askAdminConfirmation({title:"Update Order Status?",message:`Change the order status to ${btn.dataset.status}?`,confirmLabel:"Yes, Update"}))return;
-      const ok=updateStatus(btn.dataset.id,btn.dataset.status);
-      if(!ok)alert('Could not update the order. Refresh the page and try again.');
+      try { await updateStatus(btn.dataset.id, btn.dataset.status); }
+      catch (error) {
+        alert(error.message);
+        if (error.status === 409) await refreshRecords();
+      }
       render();return;
     }
   });
@@ -606,9 +613,6 @@
     else return;
     render();
   });
-  window.addEventListener('storage',e=>{
-    if(e.key?.startsWith(STORAGE_PREFIX)||e.key===USERS_KEY)render();
-  });
   if(FILE){
     window.addEventListener('hashchange',()=>queueMicrotask(()=>{
       if(activePage())render();else document.body.classList.remove('ga-mode');
@@ -617,6 +621,7 @@
   } else if (activePage()) {
     auth('session').then(account => {
       admin = account;
+      if (account && !['login', 'recovery', 'accounts'].includes(activePage())) return refreshRecords();
       render();
     }).catch(error => {
       const host = rootNode();
