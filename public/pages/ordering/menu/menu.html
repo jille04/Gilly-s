@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#800000" />
+    <meta name="description" content="Gilly's — real food, made for your everyday. Order bowls, plan ahead, or explore our subscription offers." />
+    <link rel="icon" type="image/x-icon" href="../../../assets/gillys-mascot-favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="../../../assets/gillys-mascot-favicon-180.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700;800&family=Sacramento&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link rel="preconnect" href="https://images.pexels.com" crossorigin />
+    <link rel="stylesheet" href="../../../styles.css?v=20261124-cloudflare-auth" />
+    <link rel="stylesheet" href="../../../theme.css?v=20261124-cloudflare-auth" />
+    <title>Gilly's | Order Meals</title>
+      <meta name="gillys-release" content="20261124-cloudflare-auth" />
+  </head>
+  <body>
+    <div id="app" data-page-route="/menu">
+      <header class="sh">
+        <div class="sh-bar wrap">
+          <a href="../../../index.html" data-link class="brand sh-brand" aria-label="Gilly's home">
+            <span class="g-brand-lockup">
+              <img class="g-brand-mark" src="../../../assets/Cheerful Gilly Chef Mascot.png" alt="" width="76" height="76" decoding="async" />
+              <span class="g-brand-wordmark">Gilly’s</span>
+            </span>
+          </a>
+          <nav class="sh-nav" aria-label="Main navigation">
+            <a href="../../../pages/ordering/menu/menu.html" data-link class="sh-link active" aria-current="page">Order Meals</a>
+            <a href="../../../pages/ordering/build-a-bowl/build.html" data-link class="sh-link">Build a Bowl</a>
+            <a href="../../../pages/meal-plans/overview/meal-plans.html" data-link class="sh-link">Meal Plans</a>
+            <a href="../../../pages/nutrition/calorie-guide/calorie-calculator.html" data-link class="sh-link">Calorie Guide</a>
+          </nav>
+          <div class="sh-actions">
+            <button type="button" class="btn btn-primary sh-signin" data-action="auth-open" data-mode="signin" aria-label="Sign in"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Sign in</span></button>
+            <button type="button" class="sh-cart" data-action="cart-open" aria-label="Open cart" title="View your cart"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M2 3h2l2.6 12.2a2 2 0 0 0 2 1.8H20"/><path d="M6 7h15l-2 8H7"/></svg></button>
+            <button type="button" class="sh-burger" data-action="toggle-mobile" aria-label="Toggle navigation" aria-expanded="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          </div>
+        </div>
+      </header>
+
+      <main>
+
+        <div class="g-pagehead">
+          <div class="wrap">
+            <h1>
+              Order meals
+            </h1>
+
+            <p>
+              Tap a bowl to customize it.
+            </p>
+
+          </div>
+        </div>
+
+        <div class="wrap menu-space">
+          <div class="menu-toolbar">
+            <div class="filter-row" role="group" aria-label="Filter menu">
+
+              <button class="filter-chip selected" data-action="filter" data-value="All meals" aria-pressed="true">
+                All meals
+              </button>
+
+              <button class="filter-chip " data-action="filter" data-value="High Protein" aria-pressed="false">
+                High Protein
+              </button>
+
+              <button class="filter-chip " data-action="filter" data-value="Balanced" aria-pressed="false">
+                Balanced
+              </button>
+
+              <button class="filter-chip " data-action="filter" data-value="Plant-Based" aria-pressed="false">
+                Plant-Based
+              </button>
+
+            </div>
+            <label class="search-field">
+
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>
+              </svg>
+
+              <input id="meal-search" type="search" placeholder="Search meals" value="" aria-label="Search meals" data-search/>
+              <span class="sr-only">
+                Search meals
+              </span>
+            </label>
+          </div>
+          <div id="menu-results">
+
+            <div class="g-tiles">
+
+              <article class="g-tile">
+                <button type="button" class="g-tile-photo" data-action="customize" data-id="herb-chicken" aria-label="Customize Herb Garden Chicken">
+                  <img src="https://images.unsplash.com/photo-1762631383628-77f92d18b184?auto=format&fit=crop&w=1100&q=82" alt="Herb Garden Chicken" loading="lazy" />
+                </button>
+                <div class="g-tile-body">
+                  <h3>
+                    Herb Garden Chicken
+                  </h3>
+                  <span class="g-tile-meta">
+                    High Protein · 515 kcal
+                  </span>
+                  <p>
+                    Juicy herb-grilled chicken, brown rice, crisp greens, and garden vegetables
+                  </p>
+                </div>
+                <button type="button" class="g-tile-add" data-action="customize" data-id="herb-chicken" aria-label="Customize Herb Garden Chicken, ₱289">
+                  <span class="g-tile-plus" aria-hidden="true">
+
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+
+                  </span>
+                  <b>
+                    ₱289
+                  </b>
+                </button>
+              </article>
+
+              <article class="g-tile">
+                <button type="button" class="g-tile-photo" data-action="customize" data-id="salmon-avocado" aria-label="Customize Sesame Salmon Bowl">
+                  <img src="https://images.unsplash.com/photo-1768326119213-e0ad875083a3?auto=format&fit=crop&w=1100&q=82" alt="Sesame Salmon Bowl" loading="lazy" />
+                </button>
+                <div class="g-tile-body">
+                  <h3>
+                    Sesame Salmon Bowl
+                  </h3>
+                  <span class="g-tile-meta">
+                    Balanced · 560 kcal
+                  </span>
+                  <p>
+                    Seared salmon, creamy avocado, quinoa, edamame, and sesame
+                  </p>
+                </div>
+                <button type="button" class="g-tile-add" data-action="customize" data-id="salmon-avocado" aria-label="Customize Sesame Salmon Bowl, ₱349">
+                  <span class="g-tile-plus" aria-hidden="true">
+
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+
+                  </span>
+                  <b>
+                    ₱349
+                  </b>
+                </button>
+              </article>
+
+              <article class="g-tile">
+                <button type="button" class="g-tile-photo" data-action="customize" data-id="korean-beef" aria-label="Customize Korean Beef &amp; Rice">
+                  <img src="https://images.unsplash.com/photo-1761064864532-1794a1f8f784?auto=format&fit=crop&w=1100&q=82" alt="Korean Beef &amp; Rice" loading="lazy" />
+                </button>
+                <div class="g-tile-body">
+                  <h3>
+                    Korean Beef &amp; Rice
+                  </h3>
+                  <span class="g-tile-meta">
+                    High Protein · 630 kcal
+                  </span>
+                  <p>
+                    Tender savory beef, warm rice, bright slaw, and a sunny egg
+                  </p>
+                </div>
+                <button type="button" class="g-tile-add" data-action="customize" data-id="korean-beef" aria-label="Customize Korean Beef &amp; Rice, ₱329">
+                  <span class="g-tile-plus" aria-hidden="true">
+
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+
+                  </span>
+                  <b>
+                    ₱329
+                  </b>
+                </button>
+              </article>
+
+              <article class="g-tile">
+                <button type="button" class="g-tile-photo" data-action="customize" data-id="harvest-veggie" aria-label="Customize Golden Harvest Bowl">
+                  <img src="https://images.unsplash.com/photo-1543352632-5a4b24e4d2a6?auto=format&fit=crop&w=1100&q=82" alt="Golden Harvest Bowl" loading="lazy" />
+                </button>
+                <div class="g-tile-body">
+                  <h3>
+                    Golden Harvest Bowl
+                  </h3>
+                  <span class="g-tile-meta">
+                    Plant-Based · 455 kcal
+                  </span>
+                  <p>
+                    Roasted squash, chickpeas, crisp broccoli, and herbed quinoa
+                  </p>
+                </div>
+                <button type="button" class="g-tile-add" data-action="customize" data-id="harvest-veggie" aria-label="Customize Golden Harvest Bowl, ₱259">
+                  <span class="g-tile-plus" aria-hidden="true">
+
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+
+                  </span>
+                  <b>
+                    ₱259
+                  </b>
+                </button>
+              </article>
+
+              <article class="g-tile">
+                <button type="button" class="g-tile-photo" data-action="customize" data-id="lemon-chicken" aria-label="Customize Lemon Pepper Chicken">
+                  <img src="https://images.unsplash.com/photo-1775039983749-aa6003c8ecf9?auto=format&fit=crop&w=1100&q=82" alt="Lemon Pepper Chicken" loading="lazy" />
+                </button>
+                <div class="g-tile-body">
+                  <h3>
+                    Lemon Pepper Chicken
+                  </h3>
+                  <span class="g-tile-meta">
+                    High Protein · 535 kcal
+                  </span>
+                  <p>
+                    Golden chicken, garden vegetables, fluffy rice, and citrus herbs
+                  </p>
+                </div>
+                <button type="button" class="g-tile-add" data-action="customize" data-id="lemon-chicken" aria-label="Customize Lemon Pepper Chicken, ₱299">
+                  <span class="g-tile-plus" aria-hidden="true">
+
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+
+                  </span>
+                  <b>
+                    ₱299
+                  </b>
+                </button>
+              </article>
+
+              <article class="g-tile">
+                <button type="button" class="g-tile-photo" data-action="customize" data-id="sesame-tofu" aria-label="Customize Sesame Glazed Tofu">
+                  <img src="https://images.unsplash.com/photo-1572448910681-3341d74893d2?auto=format&fit=crop&w=1100&q=82" alt="Sesame Glazed Tofu" loading="lazy" />
+                </button>
+                <div class="g-tile-body">
+                  <h3>
+                    Sesame Glazed Tofu
+                  </h3>
+                  <span class="g-tile-meta">
+                    Plant-Based · 470 kcal
+                  </span>
+                  <p>
+                    Crisp tofu, crunchy rainbow greens, brown rice, and sesame glaze
+                  </p>
+                </div>
+                <button type="button" class="g-tile-add" data-action="customize" data-id="sesame-tofu" aria-label="Customize Sesame Glazed Tofu, ₱269">
+                  <span class="g-tile-plus" aria-hidden="true">
+
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+
+                  </span>
+                  <b>
+                    ₱269
+                  </b>
+                </button>
+              </article>
+
+              <article class="g-tile">
+                <button type="button" class="g-tile-photo" data-action="customize" data-id="calamansi-chicken" aria-label="Customize Calamansi Chicken Bowl">
+                  <img src="https://images.pexels.com/photos/34463118/pexels-photo-34463118/free-photo-of-delicious-grilled-chicken-with-rice-and-vegetables.jpeg?auto=compress&cs=tinysrgb&w=1100" alt="Calamansi Chicken Bowl" loading="lazy" />
+                </button>
+                <div class="g-tile-body">
+                  <h3>
+                    Calamansi Chicken Bowl
+                  </h3>
+                  <span class="g-tile-meta">
+                    Balanced · 480 kcal
+                  </span>
+                  <p>
+                    Grilled chicken with calamansi vinaigrette, brown rice, crunchy slaw, and cucumber
+                  </p>
+                </div>
+                <button type="button" class="g-tile-add" data-action="customize" data-id="calamansi-chicken" aria-label="Customize Calamansi Chicken Bowl, ₱279">
+                  <span class="g-tile-plus" aria-hidden="true">
+
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+
+                  </span>
+                  <b>
+                    ₱279
+                  </b>
+                </button>
+              </article>
+
+              <article class="g-tile">
+                <button type="button" class="g-tile-photo" data-action="customize" data-id="kamote-beef" aria-label="Customize Kamote &amp; Beef Sirloin Bowl">
+                  <img src="https://images.pexels.com/photos/7594969/pexels-photo-7594969.jpeg?auto=compress&cs=tinysrgb&w=1100" alt="Kamote &amp; Beef Sirloin Bowl" loading="lazy" />
+                </button>
+                <div class="g-tile-body">
+                  <h3>
+                    Kamote &amp; Beef Sirloin Bowl
+                  </h3>
+                  <span class="g-tile-meta">
+                    High Protein · 590 kcal
+                  </span>
+                  <p>
+                    Seared beef sirloin, roasted kamote, broccoli, and fresh garden greens
+                  </p>
+                </div>
+                <button type="button" class="g-tile-add" data-action="customize" data-id="kamote-beef" aria-label="Customize Kamote &amp; Beef Sirloin Bowl, ₱339">
+                  <span class="g-tile-plus" aria-hidden="true">
+
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+
+                  </span>
+                  <b>
+                    ₱339
+                  </b>
+                </button>
+              </article>
+
+              <article class="g-tile">
+                <button type="button" class="g-tile-photo" data-action="customize" data-id="peanut-tofu" aria-label="Customize Peanut Tofu Rice Bowl">
+                  <img src="https://images.pexels.com/photos/1484519/pexels-photo-1484519.jpeg?auto=compress&cs=tinysrgb&w=1100" alt="Peanut Tofu Rice Bowl" loading="lazy" />
+                </button>
+                <div class="g-tile-body">
+                  <h3>
+                    Peanut Tofu Rice Bowl
+                  </h3>
+                  <span class="g-tile-meta">
+                    Plant-Based · 480 kcal
+                  </span>
+                  <p>
+                    Golden tofu, steamed rice, crunchy slaw, and a light peanut sauce
+                  </p>
+                </div>
+                <button type="button" class="g-tile-add" data-action="customize" data-id="peanut-tofu" aria-label="Customize Peanut Tofu Rice Bowl, ₱249">
+                  <span class="g-tile-plus" aria-hidden="true">
+
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+
+                  </span>
+                  <b>
+                    ₱249
+                  </b>
+                </button>
+              </article>
+
+            </div>
+
+          </div>
+        </div>
+      </main>
+
+      <footer class="g-foot">
+        <div class="wrap g-foot-grid">
+          <div>
+            <a href="../../../index.html" data-link class="brand">
+
+              <span class="g-brand-lockup">
+                <img
+                  class="g-brand-mark"
+                  src="../../../assets/Cheerful Gilly Chef Mascot.png"
+                  alt=""
+                  width="76"
+                  height="76"
+                  decoding="async"
+                  />
+                <span class="g-brand-wordmark">Gilly’s</span>
+              </span>
+
+            </a>
+            <p>
+              Good food, good days
+            </p>
+          </div>
+          <div>
+            <strong>
+              Explore
+            </strong>
+
+            <a href="menu.html" data-link>
+              Order Meals
+            </a>
+
+            <a href="../build-a-bowl/build.html" data-link>
+              Build a Bowl
+            </a>
+
+            <a href="../../meal-plans/overview/meal-plans.html" data-link>
+              Meal Plans
+            </a>
+
+            <a href="../../subscriptions/overview/subscriptions.html" data-link>
+              Subscriptions
+            </a>
+
+            <a href="../../nutrition/calorie-guide/calorie-calculator.html" data-link>
+              Calorie Guide
+            </a>
+          </div>
+          <div>
+            <strong>
+              Help
+            </strong>
+            <a href="../../account/profile/account.html" data-link>
+              My Account
+            </a>
+            <a href="../../orders/history/orders.html" data-link>
+              Order History
+            </a>
+            <a href="../../support/information/information.html" data-link>
+              Pickup & FAQs
+            </a>
+          </div>
+          <div>
+            <strong>
+              Order pickup
+            </strong>
+            <p>
+              Pickup location: Taft Avenue Building, 2222 Taft Avenue, Malate, City of Manila, Metro Manila 1004, Philippines
+            </p>
+          </div>
+        </div>
+        <div class="wrap g-foot-bottom">
+          <span>© 2026 Gilly's</span>
+          <a href="../../../admin/" class="g-foot-staff-link" data-staff-login>Admin Login</a>
+        </div>
+      </footer>
+    </div>
+    <script src="../../../script.js?v=20261124-cloudflare-auth" defer></script>
+  </body>
+</html>

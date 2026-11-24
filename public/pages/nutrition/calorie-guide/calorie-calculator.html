@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#800000" />
+    <meta name="description" content="Gilly's — real food, made for your everyday. Order bowls, plan ahead, or explore our subscription offers." />
+    <link rel="icon" type="image/x-icon" href="../../../assets/gillys-mascot-favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="../../../assets/gillys-mascot-favicon-180.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700;800&family=Sacramento&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link rel="preconnect" href="https://images.pexels.com" crossorigin />
+    <link rel="stylesheet" href="../../../styles.css?v=20261124-cloudflare-auth" />
+    <link rel="stylesheet" href="../../../theme.css?v=20261124-cloudflare-auth" />
+    <title>Gilly's | Calorie Guide</title>
+      <meta name="gillys-release" content="20261124-cloudflare-auth" />
+  </head>
+  <body>
+    <div id="app" data-page-route="/calorie-calculator">
+      <header class="sh">
+        <div class="sh-bar wrap">
+          <a href="../../../index.html" data-link class="brand sh-brand" aria-label="Gilly's home">
+            <span class="g-brand-lockup">
+              <img class="g-brand-mark" src="../../../assets/Cheerful Gilly Chef Mascot.png" alt="" width="76" height="76" decoding="async" />
+              <span class="g-brand-wordmark">Gilly’s</span>
+            </span>
+          </a>
+          <nav class="sh-nav" aria-label="Main navigation">
+            <a href="../../../pages/ordering/menu/menu.html" data-link class="sh-link">Order Meals</a>
+            <a href="../../../pages/ordering/build-a-bowl/build.html" data-link class="sh-link">Build a Bowl</a>
+            <a href="../../../pages/meal-plans/overview/meal-plans.html" data-link class="sh-link">Meal Plans</a>
+            <a href="../../../pages/nutrition/calorie-guide/calorie-calculator.html" data-link class="sh-link active" aria-current="page">Calorie Guide</a>
+          </nav>
+          <div class="sh-actions">
+            <button type="button" class="btn btn-primary sh-signin" data-action="auth-open" data-mode="signin" aria-label="Sign in"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Sign in</span></button>
+            <button type="button" class="sh-cart" data-action="cart-open" aria-label="Open cart" title="View your cart"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M2 3h2l2.6 12.2a2 2 0 0 0 2 1.8H20"/><path d="M6 7h15l-2 8H7"/></svg></button>
+            <button type="button" class="sh-burger" data-action="toggle-mobile" aria-label="Toggle navigation" aria-expanded="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          </div>
+        </div>
+      </header>
+
+      <main class="calorie-page">
+        <div class="wrap calc-header">
+          <h1>
+            Make room for meals that
+            <em>
+              fit you
+            </em>
+          </h1>
+          <p>
+            Get an estimate based on your age, height, weight, and activity level. Then browse meals with a number in mind
+          </p>
+        </div>
+        <div class="wrap calorie-layout">
+          <form id="calorie-form" class="calorie-form">
+            <div class="calc-form-grid">
+
+              <label class="calc-field">
+                Age (18+)
+                <input type="number" step="1" min="18" max="100" data-calorie="age" value="" placeholder="e.g. 25" required/>
+              </label>
+
+              <label class="calc-field">
+                Height (cm)
+                <input type="number" step="1" min="100" max="250" data-calorie="height" value="" placeholder="e.g. 165" required/>
+              </label>
+
+              <label class="calc-field">
+                Weight (kg)
+                <input type="number" step="1" min="25" max="350" data-calorie="weight" value="" placeholder="e.g. 65" required/>
+              </label>
+
+              <label class="calc-field">
+                Formula setting
+                <select data-calorie="sex" required>
+                  <option value="" disabled selected>Choose a formula</option>
+                  <option value="female">
+                    Female equation
+                  </option>
+                  <option value="male" >
+                    Male equation
+                  </option>
+                </select>
+              </label>
+              <label class="calc-field">
+                Activity level
+                <select data-calorie="activity">
+
+                  <option value="" disabled selected>Choose your activity level</option>
+
+                  <option value="1.2" >
+                    Mostly seated / little exercise
+                  </option>
+
+                  <option value="1.375">
+                    Light activity (1–3 days/week)
+                  </option>
+
+                  <option value="1.55" >
+                    Moderate activity (3–5 days/week)
+                  </option>
+
+                  <option value="1.725" >
+                    Very active (6–7 days/week)
+                  </option>
+
+                  <option value="1.9" >
+                    Extra active / physical work
+                  </option>
+
+                </select>
+              </label>
+              <label class="calc-field">
+                Personal goal
+                <select data-calorie="goal">
+
+                  <option value="" disabled selected>Choose your goal</option>
+
+                  <option value="maintain">
+                    Maintain weight
+                  </option>
+
+                  <option value="loss" >
+                    Gradual weight loss
+                  </option>
+
+                  <option value="gain" >
+                    Gradual weight gain
+                  </option>
+
+                </select>
+              </label>
+            </div>
+            <button class="btn btn-primary" type="submit">
+              Calculate my estimate
+            </button>
+            <p class="calc-privacy">
+              Your height, weight, and age are used only in this tab. They are not stored in your cart or sent to a server
+            </p>
+          </form>
+          <aside class="calorie-result" aria-live="polite">
+
+            <div class="calorie-empty">
+              <div class="calorie-empty-number">
+                —
+              </div>
+              <h2>
+                Your estimate will appear here
+              </h2>
+              <p>
+                Fill in your details to see a daily energy estimate and a simple per-meal reference
+              </p>
+            </div>
+
+            <p class="calorie-disclaimer">
+              Uses the Mifflin–St Jeor adult equation and common activity multipliers. This is a rough estimate, not a nutrition diagnosis or prescribed calorie limit. Nutritional needs can differ substantially
+            </p>
+          </aside>
+        </div>
+      </main>
+
+      <footer class="g-foot">
+        <div class="wrap g-foot-grid">
+          <div>
+            <a href="../../../index.html" data-link class="brand">
+
+              <span class="g-brand-lockup">
+                <img
+                  class="g-brand-mark"
+                  src="../../../assets/Cheerful Gilly Chef Mascot.png"
+                  alt=""
+                  width="76"
+                  height="76"
+                  decoding="async"
+                  />
+                <span class="g-brand-wordmark">Gilly’s</span>
+              </span>
+
+            </a>
+            <p>
+              Good food, good days
+            </p>
+          </div>
+          <div>
+            <strong>
+              Explore
+            </strong>
+
+            <a href="../../ordering/menu/menu.html" data-link>
+              Order Meals
+            </a>
+
+            <a href="../../ordering/build-a-bowl/build.html" data-link>
+              Build a Bowl
+            </a>
+
+            <a href="../../meal-plans/overview/meal-plans.html" data-link>
+              Meal Plans
+            </a>
+
+            <a href="../../subscriptions/overview/subscriptions.html" data-link>
+              Subscriptions
+            </a>
+
+            <a href="calorie-calculator.html" data-link>
+              Calorie Guide
+            </a>
+          </div>
+          <div>
+            <strong>
+              Help
+            </strong>
+            <a href="../../account/profile/account.html" data-link>
+              My Account
+            </a>
+            <a href="../../orders/history/orders.html" data-link>
+              Order History
+            </a>
+            <a href="../../support/information/information.html" data-link>
+              Pickup & FAQs
+            </a>
+          </div>
+          <div>
+            <strong>
+              Order pickup
+            </strong>
+            <p>
+              Pickup location: Taft Avenue Building, 2222 Taft Avenue, Malate, City of Manila, Metro Manila 1004, Philippines
+            </p>
+          </div>
+        </div>
+        <div class="wrap g-foot-bottom">
+          <span>© 2026 Gilly's</span>
+          <a href="../../../admin/" class="g-foot-staff-link" data-staff-login>Admin Login</a>
+        </div>
+      </footer>
+    </div>
+    <script src="../../../script.js?v=20261124-cloudflare-auth" defer></script>
+  </body>
+</html>

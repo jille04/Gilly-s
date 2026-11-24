@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#800000" />
+    <meta name="description" content="Gilly's — real food, made for your everyday. Order bowls, plan ahead, or explore our subscription offers." />
+    <link rel="icon" type="image/x-icon" href="../../../assets/gillys-mascot-favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="../../../assets/gillys-mascot-favicon-180.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700;800&family=Sacramento&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link rel="preconnect" href="https://images.pexels.com" crossorigin />
+    <link rel="stylesheet" href="../../../styles.css?v=20261124-cloudflare-auth" />
+    <link rel="stylesheet" href="../../../theme.css?v=20261124-cloudflare-auth" />
+    <title>Gilly's | Build a Bowl</title>
+      <meta name="gillys-release" content="20261124-cloudflare-auth" />
+  </head>
+  <body>
+    <div id="app" data-page-route="/build">
+      <header class="sh">
+        <div class="sh-bar wrap">
+          <a href="../../../index.html" data-link class="brand sh-brand" aria-label="Gilly's home">
+            <span class="g-brand-lockup">
+              <img class="g-brand-mark" src="../../../assets/Cheerful Gilly Chef Mascot.png" alt="" width="76" height="76" decoding="async" />
+              <span class="g-brand-wordmark">Gilly’s</span>
+            </span>
+          </a>
+          <nav class="sh-nav" aria-label="Main navigation">
+            <a href="../../../pages/ordering/menu/menu.html" data-link class="sh-link">Order Meals</a>
+            <a href="../../../pages/ordering/build-a-bowl/build.html" data-link class="sh-link active" aria-current="page">Build a Bowl</a>
+            <a href="../../../pages/meal-plans/overview/meal-plans.html" data-link class="sh-link">Meal Plans</a>
+            <a href="../../../pages/nutrition/calorie-guide/calorie-calculator.html" data-link class="sh-link">Calorie Guide</a>
+          </nav>
+          <div class="sh-actions">
+            <button type="button" class="btn btn-primary sh-signin" data-action="auth-open" data-mode="signin" aria-label="Sign in"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Sign in</span></button>
+            <button type="button" class="sh-cart" data-action="cart-open" aria-label="Open cart" title="View your cart"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M2 3h2l2.6 12.2a2 2 0 0 0 2 1.8H20"/><path d="M6 7h15l-2 8H7"/></svg></button>
+            <button type="button" class="sh-burger" data-action="toggle-mobile" aria-label="Toggle navigation" aria-expanded="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          </div>
+        </div>
+      </header>
+
+      <main class="build-page">
+        <div class="build-intro wrap">
+          <div>
+            <h1>
+              Build your bowl
+            </h1>
+            <p>
+              Pick a base and a protein, then switch on the extras you crave
+            </p>
+          </div>
+        </div>
+        <div class="wrap build-layout">
+          <div class="build-mobile-preview" aria-live="polite">
+            <span>
+              <strong>
+                455 kcal
+              </strong>
+              <small>
+                Estimated bowl nutrition
+              </small>
+            </span>
+            <span>
+              <strong>
+                ₱210
+              </strong>
+              <a href="#your-bowl">
+                Review bowl ↓
+              </a>
+            </span>
+          </div>
+          <div class="build-form" aria-label="Choose your bowl ingredients">
+
+            <fieldset class="ingredient-group">
+              <legend>
+                01 · Choose your base
+              </legend>
+              <p>
+                Choose one. Swap it anytime
+              </p>
+              <div class="ingredient-grid">
+
+                <label class="ingredient-option">
+                  <input data-builder="base" type="radio" name="ingredient-base" value="brown-rice"/>
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Brown rice
+                    </strong>
+                    <small>
+                      1 cup · 216 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱35
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="base" type="radio" name="ingredient-base" value="white-rice" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Steamed white rice
+                    </strong>
+                    <small>
+                      1 cup · 205 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱30
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="base" type="radio" name="ingredient-base" value="quinoa" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Quinoa
+                    </strong>
+                    <small>
+                      1 cup · 222 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱75
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="base" type="radio" name="ingredient-base" value="greens" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Fresh garden greens
+                    </strong>
+                    <small>
+                      80 g · 18 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱30
+                  </span>
+                </label>
+
+              </div>
+            </fieldset>
+
+            <fieldset class="ingredient-group">
+              <legend>
+                02 · Pick your protein
+              </legend>
+              <p>
+                A satisfying bowl starts here
+              </p>
+              <div class="ingredient-grid">
+
+                <label class="ingredient-option">
+                  <input data-builder="protein" type="radio" name="ingredient-protein" value="chicken"/>
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Grilled chicken
+                    </strong>
+                    <small>
+                      100 g · 165 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱95
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="protein" type="radio" name="ingredient-protein" value="tofu" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Golden tofu
+                    </strong>
+                    <small>
+                      120 g · 112 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱60
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="protein" type="radio" name="ingredient-protein" value="beef" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Beef sirloin
+                    </strong>
+                    <small>
+                      100 g · 206 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱180
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="protein" type="radio" name="ingredient-protein" value="salmon" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Seared salmon
+                    </strong>
+                    <small>
+                      100 g · 208 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱190
+                  </span>
+                </label>
+
+              </div>
+            </fieldset>
+
+            <fieldset class="ingredient-group">
+              <legend>
+                03 · Add your vegetables
+              </legend>
+              <p>
+                Switch on as many as you like
+              </p>
+              <div class="ingredient-grid">
+
+                <label class="ingredient-option">
+                  <input data-builder="vegetables" type="checkbox" name="ingredient-vegetables" value="broccoli"/>
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Roasted broccoli
+                    </strong>
+                    <small>
+                      80 g · 28 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱40
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="vegetables" type="checkbox" name="ingredient-vegetables" value="kamote" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Roasted kamote
+                    </strong>
+                    <small>
+                      100 g · 90 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱45
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="vegetables" type="checkbox" name="ingredient-vegetables" value="cabbage" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Crunchy slaw
+                    </strong>
+                    <small>
+                      70 g · 20 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱25
+                  </span>
+                </label>
+
+                <label class="ingredient-option">
+                  <input data-builder="vegetables" type="checkbox" name="ingredient-vegetables" value="cucumber"/>
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Fresh cucumber
+                    </strong>
+                    <small>
+                      70 g · 11 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱20
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="vegetables" type="checkbox" name="ingredient-vegetables" value="avocado" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Avocado
+                    </strong>
+                    <small>
+                      60 g · 96 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱65
+                  </span>
+                </label>
+
+              </div>
+            </fieldset>
+
+            <fieldset class="ingredient-group">
+              <legend>
+                04 · Finish with a sauce
+              </legend>
+              <p>
+                One dressing, or none
+              </p>
+              <div class="ingredient-grid">
+
+                <label class="ingredient-option ">
+                  <input data-builder="sauce" type="radio" name="ingredient-sauce" value="none" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      No dressing
+                    </strong>
+                    <small>
+                      · 0 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    Free
+                  </span>
+                </label>
+
+                <label class="ingredient-option">
+                  <input data-builder="sauce" type="radio" name="ingredient-sauce" value="calamansi"/>
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Calamansi vinaigrette
+                    </strong>
+                    <small>
+                      1 serving · 35 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱20
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="sauce" type="radio" name="ingredient-sauce" value="peanut" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Peanut sauce
+                    </strong>
+                    <small>
+                      1 serving · 90 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱25
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="sauce" type="radio" name="ingredient-sauce" value="sesame" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Sesame glaze
+                    </strong>
+                    <small>
+                      1 serving · 65 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱25
+                  </span>
+                </label>
+
+              </div>
+            </fieldset>
+
+            <fieldset class="ingredient-group">
+              <legend>
+                05 · A little something extra
+              </legend>
+              <p>
+                Completely optional
+              </p>
+              <div class="ingredient-grid">
+
+                <label class="ingredient-option ">
+                  <input data-builder="extras" type="checkbox" name="ingredient-extras" value="egg" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Soft-boiled egg
+                    </strong>
+                    <small>
+                      1 piece · 78 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱35
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="extras" type="checkbox" name="ingredient-extras" value="edamame" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Edamame
+                    </strong>
+                    <small>
+                      60 g · 73 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱39
+                  </span>
+                </label>
+
+                <label class="ingredient-option ">
+                  <input data-builder="extras" type="checkbox" name="ingredient-extras" value="seeds" />
+                  <span class="ingredient-switch" aria-hidden="true">
+                    <span>
+                    </span>
+                  </span>
+                  <span class="ingredient-copy">
+                    <strong>
+                      Toasted sesame seeds
+                    </strong>
+                    <small>
+                      10 g · 57 kcal
+                    </small>
+                  </span>
+                  <span class="ingredient-price">
+                    ₱15
+                  </span>
+                </label>
+
+              </div>
+            </fieldset>
+
+          </div>
+          <aside id="your-bowl" class="build-summary" aria-live="polite">
+            <div class="build-visual">
+              <img src="https://images.pexels.com/photos/7594969/pexels-photo-7594969.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Real photograph illustrating a fresh food bowl, not a live rendering of selected ingredients"/>
+            </div>
+            <div class="build-summary-inner">
+              <div class="build-summary-heading">
+                <h2>
+                  Your bowl
+                </h2>
+                <button type="button" data-action="builder-reset" class="reset-link">
+                  Start over
+                </button>
+              </div>
+              <div class="ingredient-receipt">
+              <p>Choose your ingredients to build your bowl.</p>
+            </div>
+            <div class="bowl-macro-grid">
+
+                <div>
+                  <strong>
+                    455
+                  </strong>
+                  <small>
+                    Calories
+                  </small>
+                </div>
+
+                <div>
+                  <strong>
+                    39g
+                  </strong>
+                  <small>
+                    Protein
+                  </small>
+                </div>
+
+                <div>
+                  <strong>
+                    56g
+                  </strong>
+                  <small>
+                    Carbs
+                  </small>
+                </div>
+
+                <div>
+                  <strong>
+                    9g
+                  </strong>
+                  <small>
+                    Fat
+                  </small>
+                </div>
+
+              </div>
+              <div class="macro-rail" aria-hidden="true">
+
+                <span class="macro-protein" style="width:33.839479392624725%">
+                </span>
+
+                <span class="macro-carbs" style="width:48.590021691973966%">
+                </span>
+
+                <span class="macro-fat" style="width:17.570498915401302%">
+                </span>
+
+              </div>
+              <p class="macro-key">
+                <span class="mk mk-protein">
+                  ●
+                </span>
+                Protein &nbsp;
+                <span class="mk mk-carbs">
+                  ●
+                </span>
+                Carbs &nbsp;
+                <span class="mk mk-fat">
+                  ●
+                </span>
+                Fat
+              </p>
+              <p class="bowl-allergens">
+                Ingredient information may vary. Verify allergen details before ordering.
+              </p>
+              <div class="build-total">
+                <span>
+                  Estimated bowl total
+                </span>
+                <strong>
+                  ₱210
+                </strong>
+              </div>
+              <button type="button" class="btn btn-primary full" data-action="builder-add" >
+                Add bowl to cart
+              </button>
+              <button type="button" class="build-buy-link" data-action="builder-buy" >Skip to delivery</button>
+            </div>
+          </aside>
+        </div>
+      </main>
+
+      <footer class="g-foot">
+        <div class="wrap g-foot-grid">
+          <div>
+            <a href="../../../index.html" data-link class="brand">
+
+              <span class="g-brand-lockup">
+                <img
+                  class="g-brand-mark"
+                  src="../../../assets/Cheerful Gilly Chef Mascot.png"
+                  alt=""
+                  width="76"
+                  height="76"
+                  decoding="async"
+                  />
+                <span class="g-brand-wordmark">Gilly’s</span>
+              </span>
+
+            </a>
+            <p>
+              Good food, good days
+            </p>
+          </div>
+          <div>
+            <strong>
+              Explore
+            </strong>
+
+            <a href="../menu/menu.html" data-link>
+              Order Meals
+            </a>
+
+            <a href="build.html" data-link>
+              Build a Bowl
+            </a>
+
+            <a href="../../meal-plans/overview/meal-plans.html" data-link>
+              Meal Plans
+            </a>
+
+            <a href="../../subscriptions/overview/subscriptions.html" data-link>
+              Subscriptions
+            </a>
+
+            <a href="../../nutrition/calorie-guide/calorie-calculator.html" data-link>
+              Calorie Guide
+            </a>
+          </div>
+          <div>
+            <strong>
+              Help
+            </strong>
+            <a href="../../account/profile/account.html" data-link>
+              My Account
+            </a>
+            <a href="../../orders/history/orders.html" data-link>
+              Order History
+            </a>
+            <a href="../../support/information/information.html" data-link>
+              Pickup & FAQs
+            </a>
+          </div>
+          <div>
+            <strong>
+              Order pickup
+            </strong>
+            <p>
+              Pickup location: Taft Avenue Building, 2222 Taft Avenue, Malate, City of Manila, Metro Manila 1004, Philippines
+            </p>
+          </div>
+        </div>
+        <div class="wrap g-foot-bottom">
+          <span>© 2026 Gilly's</span>
+          <a href="../../../admin/" class="g-foot-staff-link" data-staff-login>Admin Login</a>
+        </div>
+      </footer>
+    </div>
+    <script src="../../../script.js?v=20261124-cloudflare-auth" defer></script>
+  </body>
+</html>

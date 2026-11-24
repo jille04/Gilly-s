@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#800000" />
+    <meta name="description" content="Gilly's — real food, made for your everyday. Order bowls, plan ahead, or explore our subscription offers." />
+    <link rel="icon" type="image/x-icon" href="../../../assets/gillys-mascot-favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="../../../assets/gillys-mascot-favicon-180.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700;800&family=Sacramento&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link rel="preconnect" href="https://images.pexels.com" crossorigin />
+    <link rel="stylesheet" href="../../../styles.css?v=20261124-cloudflare-auth" />
+    <link rel="stylesheet" href="../../../theme.css?v=20261124-cloudflare-auth" />
+    <title>Gilly's | Meal Plans</title>
+      <meta name="gillys-release" content="20261124-cloudflare-auth" />
+  </head>
+  <body>
+    <div id="app" data-page-route="/meal-plans">
+      <header class="sh">
+        <div class="sh-bar wrap">
+          <a href="../../../index.html" data-link class="brand sh-brand" aria-label="Gilly's home">
+            <span class="g-brand-lockup">
+              <img class="g-brand-mark" src="../../../assets/Cheerful Gilly Chef Mascot.png" alt="" width="76" height="76" decoding="async" />
+              <span class="g-brand-wordmark">Gilly’s</span>
+            </span>
+          </a>
+          <nav class="sh-nav" aria-label="Main navigation">
+            <a href="../../../pages/ordering/menu/menu.html" data-link class="sh-link">Order Meals</a>
+            <a href="../../../pages/ordering/build-a-bowl/build.html" data-link class="sh-link">Build a Bowl</a>
+            <a href="../../../pages/meal-plans/overview/meal-plans.html" data-link class="sh-link">Meal Plans</a>
+            <a href="../../../pages/nutrition/calorie-guide/calorie-calculator.html" data-link class="sh-link">Calorie Guide</a>
+          </nav>
+          <div class="sh-actions">
+            <button type="button" class="btn btn-primary sh-signin" data-action="auth-open" data-mode="signin" aria-label="Sign in"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Sign in</span></button>
+            <button type="button" class="sh-cart" data-action="cart-open" aria-label="Open cart" title="View your cart"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M2 3h2l2.6 12.2a2 2 0 0 0 2 1.8H20"/><path d="M6 7h15l-2 8H7"/></svg></button>
+            <button type="button" class="sh-burger" data-action="toggle-mobile" aria-label="Toggle navigation" aria-expanded="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          </div>
+        </div>
+      </header>
+
+      <main>
+
+        <div class="g-pagehead">
+          <div class="wrap">
+            <h1>
+              A delicious week, on your terms.
+            </h1>
+
+            <p>
+              Build a one-time meal schedule with the food you love. No subscription, no automatic renewal.
+            </p>
+
+          </div>
+        </div>
+
+        <div class="wrap page-layout">
+          <div class="main-col">
+            <section class="config-card">
+              <div class="step-title">
+                <span>
+                  01
+                </span>
+                <div>
+                  <h2>
+                    Make your plan
+                  </h2>
+                  <p>
+                    Choose when you'd like us to prepare your meals
+                  </p>
+                </div>
+              </div>
+              <div class="config-fields">
+                <label>
+                  How many days?
+                  <select data-plan="days" required>
+                    <option value="" selected disabled>Choose the number of days</option>
+                    <option value="5">
+                      5 weekdays (Monday–Friday)
+                    </option>
+                    <option value="7" >
+                      7 consecutive days
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  Start date
+                  <input type="date" data-plan="start" value="" min="2026-11-10"/>
+                </label>
+              </div>
+              <div class="period-chooser">
+                <strong>
+                  1 · Pick your goal
+                </strong>
+                <div class="period-pills">
+
+                  <button type="button" class="period-pill" data-action="plan-program" data-id="balanced" title="A little of everything">
+                    Balanced
+                  </button>
+
+                  <button type="button" class="period-pill " data-action="plan-program" data-id="protein" title="Protein-first picks">
+                    High Protein
+                  </button>
+
+                  <button type="button" class="period-pill " data-action="plan-program" data-id="light" title="Lighter, lower-kcal picks">
+                    Light
+                  </button>
+
+                </div>
+              </div>
+              <div class="period-chooser">
+                <strong>
+                  2 · Which meals do you want?
+                </strong>
+                <div class="period-pills">
+
+                  <label class="period-pill">
+                    <input data-period="Breakfast" type="checkbox"/>
+                    Breakfast
+                  </label>
+
+                  <label class="period-pill">
+                    <input data-period="Lunch" type="checkbox"/>
+                    Lunch
+                  </label>
+
+                  <label class="period-pill">
+                    <input data-period="Dinner" type="checkbox"/>
+                    Dinner
+                  </label>
+
+                </div>
+              </div>
+            </section>
+            <section class="config-card">
+              <div class="step-title">
+                <span>
+                  02
+                </span>
+                <div>
+                  <h2>
+                    Set your daily calories
+                  </h2>
+                  <p>
+                    Enter a target, or calculate one. We'll warn you if a day goes over
+                  </p>
+                </div>
+              </div>
+              <div class="config-fields">
+                <label>
+                  Daily calorie target (kcal)
+                  <input type="number" min="0" step="50" data-plan="target" value="" placeholder="e.g. 1800"/>
+                </label>
+              </div>
+              <details class="plan-calc">
+                <summary>
+                  Not sure? Calculate my daily calories
+                </summary>
+                <div class="plan-calc-grid">
+
+                  <label>
+                    Age
+                    <input type="number" data-calorie="age" value="" placeholder="18+"/>
+                  </label>
+
+                  <label>
+                    Height (cm)
+                    <input type="number" data-calorie="height" value="" placeholder="165"/>
+                  </label>
+
+                  <label>
+                    Weight (kg)
+                    <input type="number" data-calorie="weight" value="" placeholder="60"/>
+                  </label>
+
+                  <label>
+                    Sex
+                    <select data-calorie="sex">
+                      <option value="female" selected>
+                        Female
+                      </option>
+                      <option value="male" >
+                        Male
+                      </option>
+                    </select>
+                  </label>
+                  <label>
+                    Activity
+                    <select data-calorie="activity">
+
+                      <option value="1.2" >
+                        Little or no exercise
+                      </option>
+
+                      <option value="1.375" selected>
+                        Light (1–3 days/wk)
+                      </option>
+
+                      <option value="1.55" >
+                        Moderate (3–5 days/wk)
+                      </option>
+
+                      <option value="1.725" >
+                        Very active (6–7 days/wk)
+                      </option>
+
+                      <option value="1.9" >
+                        Extra active
+                      </option>
+
+                    </select>
+                  </label>
+                  <label>
+                    Goal
+                    <select data-calorie="goal">
+
+                      <option value="maintain" selected>
+                        Maintain
+                      </option>
+
+                      <option value="loss" >
+                        Lose weight
+                      </option>
+
+                      <option value="gain" >
+                        Gain weight
+                      </option>
+
+                    </select>
+                  </label>
+                </div>
+                <button class="btn btn-outline" data-action="plan-calc">
+                  Calculate and use as my target
+                </button>
+
+                <small>
+                  Calorie estimate based on Mifflin–St Jeor. Individual needs vary.
+                </small>
+              </details>
+            </section>
+            <section class="slots-section">
+              <div class="step-title">
+                <span>
+                  03
+                </span>
+                <div>
+                  <h2>
+                    Fill your days with something good
+                  </h2>
+                  <p>
+                    Auto-fill a week that fits your target, then swap anything you like
+                  </p>
+                </div>
+              </div>
+              <button class="btn btn-outline" data-action="plan-autofill">
+                Auto-fill empty meals for my target
+              </button>
+
+              <div class="schedule-list">
+
+                <section class="day-panel">
+                  <div class="day-date">
+                    <span>
+                      DAY 01
+                    </span>
+                    <h3>
+                      Tuesday, November 10
+                    </h3>
+
+                    <div class="kcal-line ">
+                      0 kcal
+                    </div>
+
+                  </div>
+                  <div class="day-slots">
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Breakfast
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-10|Breakfast">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Lunch
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-10|Lunch">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Dinner
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-10|Dinner">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                  </div>
+                </section>
+
+                <section class="day-panel">
+                  <div class="day-date">
+                    <span>
+                      DAY 02
+                    </span>
+                    <h3>
+                      Wednesday, November 11
+                    </h3>
+
+                    <div class="kcal-line ">
+                      0 kcal
+                    </div>
+
+                  </div>
+                  <div class="day-slots">
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Breakfast
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-11|Breakfast">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Lunch
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-11|Lunch">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Dinner
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-11|Dinner">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                  </div>
+                </section>
+
+                <section class="day-panel">
+                  <div class="day-date">
+                    <span>
+                      DAY 03
+                    </span>
+                    <h3>
+                      Thursday, November 12
+                    </h3>
+
+                    <div class="kcal-line ">
+                      0 kcal
+                    </div>
+
+                  </div>
+                  <div class="day-slots">
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Breakfast
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-12|Breakfast">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Lunch
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-12|Lunch">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Dinner
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-12|Dinner">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                  </div>
+                </section>
+
+                <section class="day-panel">
+                  <div class="day-date">
+                    <span>
+                      DAY 04
+                    </span>
+                    <h3>
+                      Friday, November 13
+                    </h3>
+
+                    <div class="kcal-line ">
+                      0 kcal
+                    </div>
+
+                  </div>
+                  <div class="day-slots">
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Breakfast
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-13|Breakfast">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Lunch
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-13|Lunch">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Dinner
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-13|Dinner">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                  </div>
+                </section>
+
+                <section class="day-panel">
+                  <div class="day-date">
+                    <span>
+                      DAY 05
+                    </span>
+                    <h3>
+                      Monday, November 16
+                    </h3>
+
+                    <div class="kcal-line ">
+                      0 kcal
+                    </div>
+
+                  </div>
+                  <div class="day-slots">
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Breakfast
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-16|Breakfast">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Lunch
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-16|Lunch">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                    <div class="slot ">
+                      <div class="slot-type">
+                        <span class="slot-period">
+                          Dinner
+                        </span>
+
+                        <span class="slot-open">
+                          Not selected
+                        </span>
+
+                      </div>
+
+                      <button class="empty-slot" data-action="slot-choose" data-kind="plan" data-slot="2026-11-16|Dinner">
+
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 5v14m-7-7h14"/>
+                        </svg>
+                        Choose a meal
+                      </button>
+
+                    </div>
+
+                  </div>
+                </section>
+
+              </div>
+
+            </section>
+          </div>
+          <aside class="sticky-aside">
+            <div class="review-box">
+              <h3>
+                Looking good so far
+              </h3>
+              <div class="progress">
+                <div style="width:0%">
+                </div>
+              </div>
+              <div class="progress-label">
+                <span>
+                  0 of 15 meals selected
+                </span>
+                <strong>
+                  0%
+                </strong>
+              </div>
+
+              <div class="summary-line">
+                <span>
+                  Meal subtotal
+                </span>
+                <strong>
+                  ₱0
+                </strong>
+              </div>
+
+              <div class="summary-line">
+                <span>
+                  Pickup · No Gilly’s delivery fee
+                </span>
+                <span>
+                  ₱0
+                </span>
+              </div>
+              <div class="summary-line">
+                <span>
+                  Est. VAT in meal prices (included)
+                </span>
+                <span>
+                  ₱0
+                </span>
+              </div>
+              <div class="summary-line total">
+                <span>
+                  Estimated total
+                </span>
+                <strong>
+                  ₱0
+                </strong>
+              </div>
+              <p class="caption">
+                Prices are estimates and subject to confirmation
+              </p>
+
+              <div class="soft-note">
+
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>
+                </svg>
+                Choose your pickup date. Available slots are subject to confirmation.
+              </div>
+              <div class="soft-note">
+
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>
+                </svg>
+                One-time plan only. Never renews automatically
+              </div>
+              <button class="btn btn-primary full" data-action="plan-review" disabled>
+                Review your plan
+              </button>
+
+              <small class="aside-help">
+                Choose 15 more meals to continue
+              </small>
+
+            </div>
+          </aside>
+        </div>
+      </main>
+
+      <footer class="g-foot">
+        <div class="wrap g-foot-grid">
+          <div>
+            <a href="../../../index.html" data-link class="brand">
+
+              <span class="g-brand-lockup">
+                <img
+                  class="g-brand-mark"
+                  src="../../../assets/Cheerful Gilly Chef Mascot.png"
+                  alt=""
+                  width="76"
+                  height="76"
+                  decoding="async"
+                  />
+                <span class="g-brand-wordmark">Gilly’s</span>
+              </span>
+
+            </a>
+            <p>
+              Good food, good days
+            </p>
+          </div>
+          <div>
+            <strong>
+              Explore
+            </strong>
+
+            <a href="../../ordering/menu/menu.html" data-link>
+              Order Meals
+            </a>
+
+            <a href="../../ordering/build-a-bowl/build.html" data-link>
+              Build a Bowl
+            </a>
+
+            <a href="meal-plans.html" data-link>
+              Meal Plans
+            </a>
+
+            <a href="../../subscriptions/overview/subscriptions.html" data-link>
+              Subscriptions
+            </a>
+
+            <a href="../../nutrition/calorie-guide/calorie-calculator.html" data-link>
+              Calorie Guide
+            </a>
+          </div>
+          <div>
+            <strong>
+              Help
+            </strong>
+            <a href="../../account/profile/account.html" data-link>
+              My Account
+            </a>
+            <a href="../../orders/history/orders.html" data-link>
+              Order History
+            </a>
+            <a href="../../support/information/information.html" data-link>
+              Pickup & FAQs
+            </a>
+          </div>
+          <div>
+            <strong>
+              Order pickup
+            </strong>
+            <p>
+              Pickup location: Taft Avenue Building, 2222 Taft Avenue, Malate, City of Manila, Metro Manila 1004, Philippines
+            </p>
+          </div>
+        </div>
+        <div class="wrap g-foot-bottom">
+          <span>© 2026 Gilly's</span>
+          <a href="../../../admin/" class="g-foot-staff-link" data-staff-login>Admin Login</a>
+        </div>
+      </footer>
+    </div>
+    <script src="../../../script.js?v=20261124-cloudflare-auth" defer></script>
+  </body>
+</html>
