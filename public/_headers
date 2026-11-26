@@ -9,3 +9,6 @@
 
 /admin/admin.js
   Cache-Control: no-cache, must-revalidate
+
+/script.js
+  Cache-Control: no-cache, must-revalidate

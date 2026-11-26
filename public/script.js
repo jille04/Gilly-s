@@ -1978,7 +1978,7 @@ function focusDescriptor(el) {
     const value = el.getAttribute(attr);
     if (value) selector += `[${attr}="${CSS.escape(value)}"]`;
   }
-  if (el.matches('input[type="radio"], input[type="checkbox"]')) {
+  if (el.hasAttribute('value') && el.matches('input[type="radio"], input[type="checkbox"]')) {
     selector += `[value="${CSS.escape(el.value)}"]`;
   }
   return selector === tag ? null : selector;
