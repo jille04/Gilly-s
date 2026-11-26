@@ -1,6 +1,6 @@
 import {
   BUSINESS, PICKUP_BRANCHES, OFFERS, INGREDIENT_GROUPS, mealById, mealTotal, mealPriceDetails,
-  defaultCustomization, portionOptions, proteinOptions, toppings, sauces, createSchedule, datePlus,
+  defaultCustomization, portionOptions, proteinOptions, toppings, sauces, createSchedule, defaultStart,
   manilaNow, demoCartSlots, pesoRound, orderTaxParts,
 } from './order-catalog.generated.mjs';
 import { HttpError } from './http.mjs';
@@ -64,8 +64,7 @@ function pickupDetails(kind, raw, now) {
   const branch = PICKUP_BRANCHES.find(branch => branch.id === raw?.branchId);
   if (!branch) invalid('Choose a pickup location.');
   const date = raw.date;
-  const minimumScheduledDate = datePlus(manilaNow(now).date, BUSINESS.orderMinLeadDays);
-  if (!validDate(date) || (kind !== 'cart' && date < minimumScheduledDate)) invalid('Choose an eligible pickup date.');
+  if (!validDate(date) || (kind !== 'cart' && date < defaultStart(now))) invalid('Choose an eligible pickup date.');
   const allowedTimes = kind === 'cart' ? demoCartSlots(date, now) : BUSINESS.timeSlots;
   if (!allowedTimes.includes(raw.time)) invalid('Choose an available pickup time.');
   const contactName = typeof raw.contactName === 'string' ? raw.contactName.trim() : '';
@@ -100,7 +99,7 @@ function scheduleFor(kind, start, raw) {
 export function createSnapshot(body, email, treatment, now = new Date()) {
   const { kind } = body;
   if (!['cart', 'plan', 'subscription'].includes(kind)) invalid('Choose a valid order type.');
-  if (!Array.isArray(body.items) || !body.items.length || body.items.length > 100) invalid('Check the meals in your order.');
+  if (!Array.isArray(body.items) || !body.items.length || body.items.length > BUSINESS.maxCartLines) invalid('Check the meals in your order.');
   const pickup = pickupDetails(kind, body.pickup, now);
   const { slots, discountRate } = scheduleFor(kind, pickup.date, body.schedule);
   const slotIds = new Set(slots.map(slot => slot.id));
@@ -108,7 +107,7 @@ export function createSnapshot(body, email, treatment, now = new Date()) {
     const product = mealById(item?.productId);
     if (!product) invalid('A selected meal is no longer available.');
     const quantity = item.quantity;
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) invalid('Check the meal quantity.');
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > BUSINESS.maxLineQuantity) invalid('Check the meal quantity.');
     if (kind !== 'cart' && (quantity !== 1 || !slotIds.delete(item.slot))) invalid('Check the meals on your schedule.');
     const custom = customization(product, item.custom);
     const price = mealTotal(product, custom);
@@ -127,12 +126,11 @@ export function createSnapshot(body, email, treatment, now = new Date()) {
     throw new HttpError(409, 'The order estimate changed. Review the updated summary and try again.');
   }
   return {
-    kind, payment: 'cash_on_pickup', fulfillment: 'customer_pickup', pickup,
+    kind, payment: 'cash_on_pickup', fulfillment: 'customer_pickup',
+    pickup: { ...pickup, date: slots[0]?.date || pickup.date },
     customer: { email, name: pickup.contactName, phone: pickup.contactPhone },
-    delivery: { date: pickup.date, time: pickup.time, instructions: pickup.instructions },
-    delivery_date: pickup.date, delivery_time: pickup.time,
     items, estimated_total: estimatedTotal,
-    pricing: { itemSubtotal, discount, deliveryFee: 0, ...orderTaxParts(itemSubtotal, discount, treatment) },
+    pricing: { itemSubtotal, discount, ...orderTaxParts(itemSubtotal, discount, treatment) },
   };
 }
 

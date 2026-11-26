@@ -7,10 +7,10 @@ const BUSINESS = Object.freeze({
   mode: 'cash_on_pickup',
   pricesAreVatInclusive: false, // VAT registration and tax treatment are not verified.
   illustrativeVatRate: 0,
-  illustrativeDeliveryFee: 0, // Gilly's does not arrange or charge for deliveries.
-  illustrativeDeliveryFeePerDay: true,
   serviceCity: 'Metro Manila',
   timeSlots: ['10:00 AM – 12:00 PM', '12:00 PM – 2:00 PM', '5:00 PM – 7:00 PM'],
+  maxCartLines: 100,
+  maxLineQuantity: 99,
   orderMinLeadDays: 2, // Meal plans / subscriptions; regular checkout has an earlier date option.
   illustrativeSameDayCutoffHour: 11,
   illustrativeSameDayEnabled: true,
@@ -640,8 +640,8 @@ function datePlus(iso, days) {
   return toISO(dt);
 }
 
-function defaultStart() {
-  return datePlus(toISO(new Date()), 3);
+function defaultStart(now = new Date()) {
+  return datePlus(manilaNow(now).date, BUSINESS.orderMinLeadDays);
 }
 
 function createSchedule({ start, days, periods, weekdaysOnly = false }) {
@@ -706,7 +706,7 @@ function demoCartSlots(date, now = new Date()) {
 
   // Use the same configured windows for regular meals, meal plans, and
   // subscriptions. On the current Manila date, omit windows whose start time
-  // has already passed; do not arbitrarily restrict same-day delivery to one.
+  // has already passed; do not arbitrarily restrict same-day pickup to one.
   if (date !== current.date) return [...BUSINESS.timeSlots];
   const minutesNow = current.hour * 60 + current.minute;
   return BUSINESS.timeSlots.filter((slot) => {
@@ -823,5 +823,5 @@ function mealPriceDetails(product, custom = {}) {
   return { baseLabel: 'Base meal', basePrice: Number(product?.price) || 0, selections, notes };
 }
 export { BUSINESS, PICKUP_BRANCHES, OFFERS, INGREDIENT_GROUPS, mealById, mealTotal, mealPriceDetails,
-  defaultCustomization, portionOptions, proteinOptions, toppings, sauces, createSchedule, datePlus,
+  defaultCustomization, portionOptions, proteinOptions, toppings, sauces, createSchedule, defaultStart,
   manilaNow, demoCartSlots, pesoRound, orderTaxParts };

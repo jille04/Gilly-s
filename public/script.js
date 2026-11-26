@@ -13,10 +13,10 @@ const BUSINESS = Object.freeze({
   mode: 'cash_on_pickup',
   pricesAreVatInclusive: false, // VAT registration and tax treatment are not verified.
   illustrativeVatRate: 0,
-  illustrativeDeliveryFee: 0, // Gilly's does not arrange or charge for deliveries.
-  illustrativeDeliveryFeePerDay: true,
   serviceCity: 'Metro Manila',
   timeSlots: ['10:00 AM – 12:00 PM', '12:00 PM – 2:00 PM', '5:00 PM – 7:00 PM'],
+  maxCartLines: 100,
+  maxLineQuantity: 99,
   orderMinLeadDays: 2, // Meal plans / subscriptions; regular checkout has an earlier date option.
   illustrativeSameDayCutoffHour: 11,
   illustrativeSameDayEnabled: true,
@@ -726,8 +726,8 @@ function datePlus(iso, days) {
   return toISO(dt);
 }
 
-function defaultStart() {
-  return datePlus(toISO(new Date()), 3);
+function defaultStart(now = new Date()) {
+  return datePlus(manilaNow(now).date, BUSINESS.orderMinLeadDays);
 }
 
 function createSchedule({ start, days, periods, weekdaysOnly = false }) {
@@ -772,7 +772,7 @@ function groupByDay(schedule) {
   return Object.entries(grouped);
 }
 
-/** Manila-local demo timing; this is not verified delivery-slot availability. */
+/** Pickup windows use the restaurant’s Manila time. */
 function manilaNow(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Manila',
@@ -806,7 +806,7 @@ function demoCartSlots(date, now = new Date()) {
 
   // Use the same configured windows for regular meals, meal plans, and
   // subscriptions. On the current Manila date, omit windows whose start time
-  // has already passed; do not arbitrarily restrict same-day delivery to one.
+  // has already passed; do not arbitrarily restrict same-day pickup to one.
   if (date !== current.date) return [...BUSINESS.timeSlots];
   const minutesNow = current.hour * 60 + current.minute;
   return BUSINESS.timeSlots.filter((slot) => {
@@ -884,11 +884,11 @@ function mealTotal(product, custom = {}) {
 const cartSignature = (item) => JSON.stringify([item.productId, item.custom]);
 
 function addOrIncrement(items, incoming) {
-  const match = items.find((it) => cartSignature(it) === cartSignature(incoming));
+  const match = items.find(item => cartSignature(item) === cartSignature(incoming));
+  if (!match && items.length >= BUSINESS.maxCartLines) return items;
+  if (match && match.quantity + incoming.quantity > BUSINESS.maxLineQuantity) return items;
   return match
-    ? items.map((it) =>
-      it.id === match.id ? { ...it, quantity: it.quantity + incoming.quantity } : it,
-    )
+    ? items.map(item => item.id === match.id ? { ...item, quantity: item.quantity + incoming.quantity } : item)
     : [...items, incoming];
 }
 
@@ -898,12 +898,7 @@ function cartSummary(items) {
     return sum + (m ? mealTotal(m, it.custom).price * it.quantity : 0);
   }, 0);
 
-  const delivery = 0; // Customer pickup only; external courier fees are never charged by Gilly's.
-  return {
-    subtotal,
-    delivery,
-    total: subtotal + delivery,
-  };
+  return { subtotal, total: subtotal };
 }
 
 function periodSlots(schedule, assignments) {
@@ -917,7 +912,6 @@ function scheduledSummary(
   schedule,
   assignments,
   discountRate = 0,
-  includesDelivery = false,
 ) {
   const selected = periodSlots(schedule, assignments).filter((slot) => slot.selection);
 
@@ -927,13 +921,11 @@ function scheduledSummary(
   }, 0);
 
   const savings = Math.round(value * discountRate * 100) / 100;
-  const delivery = 0; // All scheduled meals are collected, not delivered by Gilly's.
 
   return {
     value,
     savings,
-    delivery,
-    total: value - savings + delivery,
+    total: value - savings,
     filled: selected.length,
     count: schedule.length,
   };
@@ -968,11 +960,9 @@ const PERIOD_SHARE = { Breakfast: 0.25, Lunch: 0.4, Dinner: 0.35 };
 
 // js/core/store.js
 // src/core/store.js
-// Previous builds saved every customer's draft under one shared browser key.
-// Ignore and discard that legacy state to prevent one person's choices appearing
-// for another visitor. Signed-out selections stay in memory until the tab closes;
-// signed-in drafts are isolated by account email.
+// Account drafts are isolated by email. Guest drafts are limited to the current tab.
 const ACCOUNT_DRAFT_PREFIX = 'gillys2-account-draft-v1:';
+const GUEST_DRAFT_KEY = 'gillys2-guest-draft-v1';
 
 const fresh = () => ({
   cart: [],
@@ -992,23 +982,12 @@ const fresh = () => ({
   },
   checkout: {
     name: '',
-    email: '',
     phone: '',
-    street: '',
-    barangay: '',
-    city: 'City of Manila',
     date: '',
     instructions: '',
     time: '',
     pickupBranch: 'manila',
     accountEmail: null,
-    addressId: null,
-    deliveryOverride: null,
-    label: '',
-    saveAddress: false,
-    makeDefault: false,
-    contactFor: '',
-    payment: 'cash_on_pickup',
   },
 });
 
@@ -1033,10 +1012,14 @@ function normalizeDraft(candidate) {
   if (subscription.start && subscription.start < defaultStart()) subscription.start = '';
   return {
     ...defaults,
-    cart: Array.isArray(candidate.cart) ? candidate.cart : [],
+    cart: Array.isArray(candidate.cart) ? candidate.cart
+      .filter(item => item && typeof item.id === 'string' && mealById(item.productId) && item.custom)
+      .slice(0, BUSINESS.maxCartLines)
+      .map(item => ({ ...item, quantity: Math.min(BUSINESS.maxLineQuantity, Math.max(1, Math.trunc(Number(item.quantity)) || 1)) }))
+      : [],
     plan,
     subscription,
-    checkout: defaults.checkout, // Pickup scheduling is per order, not auto-filled from a delivery address.
+    checkout: defaults.checkout, // Pickup details belong to the current order.
   };
 }
 
@@ -1053,7 +1036,19 @@ function loadAccountDraft(email) {
   }
 }
 
-const store = fresh();
+function loadGuestDraft() {
+  try {
+    return normalizeDraft(JSON.parse(globalThis.sessionStorage?.getItem(GUEST_DRAFT_KEY) || 'null'));
+  } catch {
+    return fresh();
+  }
+}
+
+function clearGuestDraft() {
+  try { globalThis.sessionStorage?.removeItem(GUEST_DRAFT_KEY); } catch {}
+}
+
+const store = loadGuestDraft();
 
 function draftSnapshot() {
   return {
@@ -1061,25 +1056,6 @@ function draftSnapshot() {
     plan: store.plan,
     subscription: store.subscription,
   };
-}
-
-function hasVisitorSelections(draft) {
-  if (!draft) return false;
-  const baseline = fresh();
-  const plan = draft.plan || {};
-  const sub = draft.subscription || {};
-  return Boolean(
-    (draft.cart || []).length ||
-    Object.keys(plan.assignments || {}).length ||
-    Object.keys(sub.assignments || {}).length ||
-    Number(plan.target) > 0 || Number(sub.target) > 0 ||
-    plan.days !== baseline.plan.days ||
-    plan.program !== baseline.plan.program ||
-    plan.start !== baseline.plan.start ||
-    sub.offerId !== baseline.subscription.offerId ||
-    sub.start !== baseline.subscription.start ||
-    JSON.stringify(plan.periods || []) !== JSON.stringify(baseline.plan.periods)
-  );
 }
 
 function applyDraft(draft) {
@@ -1091,10 +1067,17 @@ function applyDraft(draft) {
 }
 
 function activateAccountDraft(email, visitorDraft) {
-  // Explicit choices made before signing in take priority over an older draft.
-  const choice = hasVisitorSelections(visitorDraft) ? visitorDraft : loadAccountDraft(email);
-  applyDraft(choice);
+  const saved = loadAccountDraft(email);
+  const guest = normalizeDraft(visitorDraft);
+  const existing = fresh();
+  applyDraft({
+    cart: guest.cart.length ? guest.cart : saved.cart,
+    plan: JSON.stringify(guest.plan) !== JSON.stringify(existing.plan) ? guest.plan : saved.plan,
+    subscription: JSON.stringify(guest.subscription) !== JSON.stringify(existing.subscription)
+      ? guest.subscription : saved.subscription,
+  });
   save();
+  clearGuestDraft();
 }
 
 const freshAuth = () => ({ values: {}, errors: {}, general: '', notice: '' });
@@ -1103,6 +1086,7 @@ const ui = {
   auth: freshAuth(),
   authNext: null,
   authSubmitting: false,
+  contactEditing: false,
   cartReviewKind: 'cart',
   route: typeof location !== 'undefined' ? location.pathname : '/',
   category: 'All meals',
@@ -1112,9 +1096,6 @@ const ui = {
   selectedProduct: null,
   selectionContext: null,
   editId: null,
-  addressEditId: null,
-  addressAdding: false,
-  checkoutAddressEditing: false,
   codSubmitting: false,
   pendingOrder: null,
   orderLoad: null,
@@ -1142,12 +1123,12 @@ const ui = {
 };
 
 function save() {
-  // Guest selections deliberately have no persistent browser storage.
   const email = getAccount()?.email;
-  if (!email) return;
   try {
-    globalThis.localStorage?.setItem(draftStorageKey(email), JSON.stringify(draftSnapshot()));
-  } catch { }
+    const draft = JSON.stringify(draftSnapshot());
+    if (email) globalThis.localStorage?.setItem(draftStorageKey(email), draft);
+    else globalThis.sessionStorage?.setItem(GUEST_DRAFT_KEY, draft);
+  } catch {}
 }
 
 function persist() {
@@ -1182,7 +1163,6 @@ function clearDraft(kind) {
 // Customer credentials are handled by Supabase through the Pages API.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PH_MOBILE = /^09\d{9}$/;
-const CITY = 'City of Manila';
 let customerAccount = null;
 let profileSaving = false;
 
@@ -1280,102 +1260,6 @@ async function updateAccountRecord(email, mutate) {
   } finally {
     profileSaving = false;
   }
-}
-
-function validateAddress(values = {}) {
-  const errors = {};
-  if (String(values.street || '').trim().length < 6) {
-    errors.street = 'Please enter a full street and house/unit address';
-  }
-  if (String(values.barangay || '').trim().length < 2) {
-    errors.barangay = 'Enter your barangay';
-  }
-  const name = String(values.name || '').trim();
-  if (name && name.length < 2) errors.name = 'Enter the recipient’s full name';
-  const phone = String(values.phone || '').replace(/[\s-]/g, '');
-  if (phone && !PH_MOBILE.test(phone)) {
-    errors.phone = 'Enter an 11-digit mobile number starting with 09';
-  }
-  return errors;
-}
-
-const newAddressId = () =>
-  globalThis.crypto?.randomUUID?.() ||
-  Math.random().toString(36).slice(2) + Date.now().toString(36);
-
-async function addAddress(email, values = {}, { makeDefault = false } = {}) {
-  const errors = validateAddress(values);
-  if (Object.keys(errors).length) return { ok: false, errors };
-
-  let saved = null;
-  const result = await updateAccountRecord(email, (r) => {
-    const list = Array.isArray(r.addresses) ? r.addresses : [];
-    const becomesDefault = makeDefault || list.length === 0;
-    const address = {
-      id: newAddressId(),
-      label: String(values.label || '')
-        .trim()
-        .slice(0, 30),
-      name: String(values.name || '').trim(),
-      phone: String(values.phone || '').replace(/[\s-]/g, ''),
-      street: String(values.street).trim(),
-      barangay: String(values.barangay).trim(),
-      city: CITY,
-      isDefault: becomesDefault,
-    };
-    r.addresses = [...list.map((a) => (becomesDefault ? { ...a, isDefault: false } : a)), address];
-    saved = address;
-  });
-  return result.ok ? { ...result, address: saved } : result;
-}
-
-async function updateAddress(email, id, values = {}, { makeDefault = false } = {}) {
-  const errors = validateAddress(values);
-  if (Object.keys(errors).length) return { ok: false, errors };
-  const result = await updateAccountRecord(email, (r) => {
-    r.addresses = (r.addresses || []).map((a) =>
-      a.id !== id
-        ? makeDefault
-          ? { ...a, isDefault: false }
-          : a
-        : {
-          ...a,
-          label: String(values.label || '')
-            .trim()
-            .slice(0, 30),
-          name: String(values.name || '').trim(),
-          phone: String(values.phone || '').replace(/[\s-]/g, ''),
-          street: String(values.street).trim(),
-          barangay: String(values.barangay).trim(),
-          city: CITY,
-          isDefault: makeDefault || a.isDefault,
-        },
-    );
-  });
-  return result;
-}
-
-function setDefaultAddress(email, id) {
-  return updateAccountRecord(email, (r) => {
-    r.addresses = (r.addresses || []).map((a) => ({ ...a, isDefault: a.id === id }));
-  });
-}
-
-function removeAddress(email, id) {
-  return updateAccountRecord(email, (r) => {
-    let list = (r.addresses || []).filter((a) => a.id !== id);
-    if (list.length && !list.some((a) => a.isDefault)) {
-      list = list.map((a, i) => ({ ...a, isDefault: i === 0 }));
-    }
-    r.addresses = list;
-  });
-}
-
-// Checkout uses the default address saved in My Account.
-// When no default is marked, use the first saved address (if any).
-function resolveAddressChoice(account) {
-  const saved = account.addresses || [];
-  return saved.find((address) => address.isDefault)?.id || saved[0]?.id || 'new';
 }
 
 // js/components/ui.js
@@ -1571,7 +1455,7 @@ function footer() {
         Pickup windows: ${BUSINESS.timeSlots.map(escapeHtml).join(' · ')}
       </p>
       <p class="foot-note">
-        Cash at pickup. No pickup fee. Courier arrangements are separate.
+        Pickup only. Pay in cash when you collect your order.
       </p>
     </div>
   </div>
@@ -1863,7 +1747,7 @@ function customizerModal() {
           </b>
           ${calc.allergens.length
     ? calc.allergens.join(', ')
-    : 'No declared allergens in the recipe.'} Ingredient and allergen information must be verified before launch
+    : 'No declared allergens in the recipe.'} Ask Gilly’s about ingredients and allergens before ordering.
         </p>
       </div>
       <div class="custom-footer">
@@ -1871,7 +1755,7 @@ function customizerModal() {
         <div class="qty-stepper" role="group" aria-label="Quantity">
           <button type="button" data-action="modal-qty-dec" aria-label="Decrease quantity" ${qty <= 1 ? 'disabled' : ''}>${ico('minus', 16)}</button>
           <output>${qty}</output>
-          <button type="button" data-action="modal-qty-inc" aria-label="Increase quantity" ${qty >= 99 ? 'disabled' : ''}>${ico('plus', 16)}</button>
+          <button type="button" data-action="modal-qty-inc" aria-label="Increase quantity" ${qty >= BUSINESS.maxLineQuantity ? 'disabled' : ''}>${ico('plus', 16)}</button>
         </div>` : ''}
         <div class="custom-total">
           <small>
@@ -2008,7 +1892,7 @@ function cartDrawer() {
                           <span>
                             ${it.quantity}
                           </span>
-                          <button aria-label="Increase quantity" data-action="qty-inc" data-id="${it.id}">
+                          <button aria-label="Increase quantity" data-action="qty-inc" data-id="${it.id}" ${it.quantity >= BUSINESS.maxLineQuantity ? 'disabled' : ''}>
                             ${ico('plus', 14)}
                           </button>
                         </div>
@@ -2036,10 +1920,10 @@ function cartDrawer() {
             </div>
             <div class="summary-line">
               <span>
-                Pickup · No Gilly’s delivery fee
+                Pickup
               </span>
               <span>
-                ${money(s.delivery)}
+                Free
               </span>
             </div>
             ${orderTaxLines(orderTaxParts(s.subtotal, 0))}
@@ -2068,7 +1952,7 @@ function cartDrawer() {
               ${ico('bag', 40)}
             </span>
             <h3>
-              Your bag is feeling a little empty
+              Your cart is empty
             </h3>
             <p>
               Something delicious is just a click away
@@ -2085,17 +1969,19 @@ function cartDrawer() {
 
 function focusDescriptor(el) {
   if (!el || el === document.body || !el.getAttribute) return null;
-  const esc = (v) => String(v).replace(/"/g, '\\"');
   if (el.id) return `#${CSS.escape(el.id)}`;
-  const d = el.dataset || {};
-  if (d.action) {
-    let selector = `${el.classList[0] ? `.${CSS.escape(el.classList[0])}` : ''}[data-action="${esc(d.action)}"]`;
-    if (d.id) selector += `[data-id="${esc(d.id)}"]`;
-    if (d.mode) selector += `[data-mode="${esc(d.mode)}"]`;
-    return selector;
+  const tag = el.tagName.toLowerCase();
+  let selector = tag;
+  for (const attr of ['data-action', 'data-id', 'data-mode', 'data-target', 'data-next', 'data-kind', 'data-slot',
+    'data-modifier', 'data-top', 'data-remove', 'data-builder', 'data-period', 'data-auth',
+    'data-checkout', 'data-plan', 'data-menu', 'name', 'aria-label']) {
+    const value = el.getAttribute(attr);
+    if (value) selector += `[${attr}="${CSS.escape(value)}"]`;
   }
-  const label = el.getAttribute('aria-label');
-  return label ? `${el.tagName.toLowerCase()}[aria-label="${esc(label)}"]` : null;
+  if (el.matches('input[type="radio"], input[type="checkbox"]')) {
+    selector += `[value="${CSS.escape(el.value)}"]`;
+  }
+  return selector === tag ? null : selector;
 }
 
 function authModal() {
@@ -2222,7 +2108,7 @@ function orderTaxLines(taxInfo, lineClass = 'summary-line') {
   return '';
 }
 
-function summaryRows(value, savings = 0, delivery = 0, subscription = false) {
+function summaryRows(value, savings = 0, subscription = false) {
   const tax = orderTaxParts(value, savings);
   return `
     <div class="summary-line"><span>${subscription ? 'Meal package value' : 'Meal subtotal'}</span><strong>${money(value)}</strong></div>
@@ -2488,7 +2374,7 @@ function builderPage() {
           <button type="button" class="btn btn-primary full" data-action="builder-add" ${result.valid ? '' : 'disabled'}>
             ${actionLabel}
           </button>
-          ${!context ? '<button type="button" class="build-buy-link" data-action="builder-buy" ' + (result.valid ? '' : 'disabled') + '>Skip to pickup</button>' : ''}
+          ${!context ? '<button type="button" class="build-buy-link" data-action="builder-buy" ' + (result.valid ? '' : 'disabled') + '>Add and review cart</button>' : ''}
         </div>
         </div>
       </aside>
@@ -3249,7 +3135,7 @@ function mealPlans() {
                 </div>
               `
     : ''}
-          ${summaryRows(summary.value, 0, summary.delivery)}
+          ${summaryRows(summary.value)}
           <div class="soft-note">
             ${ico('calendar', 18)} Pickup dates and times are subject to availability
           </div>
@@ -3344,9 +3230,9 @@ function planReview() {
           Your plan summary
         </h3>
         <p>
-          ${summary.count} meals · ${store.plan.days} days · from ${displayDate(store.plan.start)}
+          ${summary.count} meals · ${store.plan.days} days · from ${displayDate(schedule[0].date)}
         </p>
-        ${summaryRows(summary.value, 0, summary.delivery)}
+        ${summaryRows(summary.value)}
         <div class="soft-note">
           No recurring charges. This plan is purchased once
         </div>
@@ -3568,7 +3454,7 @@ function subscriptionCustomize() {
               </span>
             </div>
           ` : ''}
-          ${summaryRows(summary.value, summary.savings, 0, true)}
+          ${summaryRows(summary.value, summary.savings, true)}
           <button class="btn btn-primary full" data-action="sub-review" ${summary.filled !== summary.count || !summary.count ? 'disabled' : ''}>
             Review package
           </button>
@@ -3644,7 +3530,7 @@ function subscriptionReview() {
             <span>${over.length} ${over.length === 1 ? 'day exceeds' : 'days exceed'} your daily target. You can still edit your meals before checkout.</span>
           </div>
         ` : ''}
-        ${summaryRows(s.value, s.savings, 0, true)}
+        ${summaryRows(s.value, s.savings, true)}
         <p class="renewal-terms">
           <b>
             First cycle:
@@ -3676,7 +3562,7 @@ function subscriptionReview() {
 }
 
 
-// A dedicated cart-review step sits between selecting meals and delivery checkout.
+// A dedicated cart-review step sits between selecting meals and pickup checkout.
 // Regular meals, one-time plans and subscription cycles retain separate orders;
 // they are not merged or double-counted together.
 function availableCartKinds() {
@@ -3685,7 +3571,7 @@ function availableCartKinds() {
   const plan = scheduledSummary(planSchedule(), store.plan.assignments);
   if (plan.count && plan.filled) kinds.push('plan');
   const subscription = scheduledSummary(
-    subSchedule(), store.subscription.assignments, subOffer().discountRate, true,
+    subSchedule(), store.subscription.assignments, subOffer().discountRate,
   );
   if (subscription.count && subscription.filled) kinds.push('subscription');
   return kinds;
@@ -3704,13 +3590,12 @@ function cartReview() {
     ? cartSummary(store.cart)
     : isPlan
       ? scheduledSummary(schedule, assignments)
-      : scheduledSummary(schedule, assignments, subOffer().discountRate, true);
+      : scheduledSummary(schedule, assignments, subOffer().discountRate);
   const complete = isCart ? store.cart.length > 0 : result.count > 0 && result.count === result.filled;
   const label = isCart ? 'Meals' : isPlan ? 'Meal Plan' : 'Subscription';
   const editPath = isCart ? '/menu' : isPlan ? '/meal-plans' : '/subscriptions/customize';
   const subtotal = isCart ? result.subtotal : result.value;
   const discount = isCart ? 0 : result.savings;
-  const delivery = result.delivery;
   const total = result.total;
   const itemCount = isCart ? store.cart.reduce((count, item) => count + item.quantity, 0) : result.count;
   const itemLabel = isCart ? (itemCount === 1 ? 'bowl' : 'bowls') : (itemCount === 1 ? 'scheduled meal' : 'scheduled meals');
@@ -3733,7 +3618,7 @@ function cartReview() {
             <div class="qty" aria-label="Quantity controls">
               <button type="button" data-action="qty-dec" data-id="${escapeHtml(item.id)}" aria-label="Decrease quantity">${ico('minus', 14)}</button>
               <span>${item.quantity}</span>
-              <button type="button" data-action="qty-inc" data-id="${escapeHtml(item.id)}" aria-label="Increase quantity">${ico('plus', 14)}</button>
+              <button type="button" data-action="qty-inc" data-id="${escapeHtml(item.id)}" aria-label="Increase quantity" ${item.quantity >= BUSINESS.maxLineQuantity ? 'disabled' : ''}>${ico('plus', 14)}</button>
             </div>
             <button type="button" class="cart-review-link" data-action="cart-edit" data-id="${escapeHtml(item.id)}">Edit</button>
             <button type="button" class="cart-review-link" data-action="cart-remove" data-id="${escapeHtml(item.id)}">Remove</button>
@@ -3809,7 +3694,6 @@ function cartReview() {
   </main>`;
 }
 
-// Checkout can use a saved address or a one-order address without overwriting the account.
 // Show selected options in checkout without making any extra charges.
 function checkoutChoiceNotes(meal, custom = {}) {
   const details = mealPriceDetails(meal, custom);
@@ -3823,65 +3707,29 @@ function checkoutChoiceNotes(meal, custom = {}) {
   return `<div class="g-checkout-choices">${[...additions, ...removals].join('')}</div>`;
 }
 
-function checkoutDeliveryAddress(account = getAccount()) {
-  if (!account) return null;
-  if (store.checkout.addressId === 'custom') {
-    const values = store.checkout.deliveryOverride || {};
-    return {
-      label: String(values.label || 'Delivery address').trim(),
-      name: String(values.name || account.name || '').trim(),
-      phone: String(values.phone || account.phone || '').replace(/[\s-]/g, ''),
-      street: String(values.street || '').trim(),
-      barangay: String(values.barangay || '').trim(),
-      city: CITY,
-    };
-  }
-  const choice = store.checkout.addressId || resolveAddressChoice(account);
-  return account.addresses.find((entry) => entry.id === choice)
-    || account.addresses.find((entry) => entry.id === resolveAddressChoice(account))
-    || null;
-}
-
-function setCustomCheckoutAddress() {
-  const account = getAccount();
-  if (!account) return;
-  const previous = checkoutDeliveryAddress(account);
-  store.checkout.deliveryOverride = {
-    label: previous?.label || '',
-    name: previous?.name || account.name || '',
-    phone: previous?.phone || account.phone || '',
-    street: previous?.street || '',
-    barangay: previous?.barangay || '',
-    city: CITY,
-  };
-  store.checkout.addressId = 'custom';
-  store.checkout.saveAddress = false;
-  ui.checkoutAddressEditing = true;
-}
-
 // js/core/orders.js
 function collectCodRequest(kind) {
   const account = getAccount();
-  if (!account) throw new Error('Please sign in before saving an order.');
-  const pickupName = String(store.checkout.name || account.name || '').trim();
-  const pickupPhone = String(store.checkout.phone || account.phone || '').replace(/[\s-]/g, '');
+  if (!account) throw new Error('Please sign in before submitting a pickup request.');
+  const schedule = kind === 'plan' ? planSchedule() : kind === 'subscription' ? subSchedule() : null;
+  const pickupName = store.checkout.name.trim();
+  const pickupPhone = store.checkout.phone.replace(/[\s-]/g, '');
   const branch = pickupBranch(store.checkout.pickupBranch);
   const pickup = {
     locationName: `${branch.name} · ${branch.address}`,
     branchId: branch.id,
     branchName: branch.name,
-    date: kind === 'cart' ? store.checkout.date : kind === 'plan' ? store.plan.start : store.subscription.start,
+    date: kind === 'cart' ? store.checkout.date : schedule[0]?.date,
     time: store.checkout.time,
     contactName: pickupName,
     contactPhone: pickupPhone,
-    instructions: store.checkout.instructions,
+    instructions: store.checkout.instructions.trim(),
   };
   const cart = kind === 'cart' ? cartSummary(store.cart) : null;
-  const schedule = kind === 'plan' ? planSchedule() : kind === 'subscription' ? subSchedule() : null;
   const scheduled = kind === 'plan'
     ? scheduledSummary(schedule, store.plan.assignments)
     : kind === 'subscription'
-      ? scheduledSummary(schedule, store.subscription.assignments, subOffer().discountRate, true)
+      ? scheduledSummary(schedule, store.subscription.assignments, subOffer().discountRate)
       : null;
   const summary = cart || scheduled;
   if (!summary) throw new Error('There are no meals to order.');
@@ -3919,15 +3767,12 @@ function collectCodRequest(kind) {
       email: account.email,
     },
     pickup,
-    // Retain a compatible date/time shape for existing order-history readers. No customer delivery address is collected.
-    delivery: { date: pickup.date, time: pickup.time, instructions: pickup.instructions },
     items,
     // Snapshot the breakdown at checkout so older orders retain their original
-    // quantities, prices, discounts and delivery costs when the menu changes.
+    // quantities, prices and discounts when the menu changes.
     pricing: {
       itemSubtotal: pesoRound(cart ? cart.subtotal : scheduled.value),
       discount: pesoRound(scheduled?.savings || 0),
-      deliveryFee: 0,
       ...orderTaxParts(cart ? cart.subtotal : scheduled.value, scheduled?.savings || 0),
     },
     schedule: kind === 'plan'
@@ -3939,6 +3784,12 @@ function collectCodRequest(kind) {
 }
 
 const LOCAL_ORDERS_PREFIX = 'gillys-offline-orders-v1:';
+const PENDING_PICKUP_KEY = 'gillys2-pending-pickup-v1';
+
+function clearPendingPickup() {
+  ui.pendingOrder = null;
+  try { globalThis.sessionStorage?.removeItem(PENDING_PICKUP_KEY); } catch {}
+}
 
 function publicOrderReference(order) {
   const id = String(order?.id || '');
@@ -3966,17 +3817,25 @@ function legacyOrdersForAccount(email) {
 }
 
 async function submitCodRequest(preview) {
-  const signature = JSON.stringify(preview);
-  if (ui.pendingOrder?.signature !== signature) {
-    ui.pendingOrder = { signature, requestId: crypto.randomUUID() };
+  const fingerprint = new Uint8Array(await crypto.subtle.digest('SHA-256',
+    new TextEncoder().encode(JSON.stringify(preview))));
+  const signature = Array.from(fingerprint, byte => byte.toString(16).padStart(2, '0')).join('');
+  let pending = ui.pendingOrder;
+  if (!pending) {
+    try { pending = JSON.parse(globalThis.sessionStorage?.getItem(PENDING_PICKUP_KEY) || 'null'); } catch {}
   }
+  if (pending?.signature !== signature || !/^[a-f0-9-]{36}$/i.test(pending.requestId || '')) {
+    pending = { signature, requestId: crypto.randomUUID() };
+  }
+  ui.pendingOrder = pending;
+  try { globalThis.sessionStorage?.setItem(PENDING_PICKUP_KEY, JSON.stringify(pending)); } catch {}
   const order = await customerApi('order', {
     requestId: ui.pendingOrder.requestId, kind: preview.kind, pickup: preview.pickup,
     schedule: preview.schedule, estimatedTotal: preview.estimatedTotal,
     taxTreatment: preview.pricing.taxTreatment,
     items: preview.items.map(({ productId, quantity, custom, slot }) => ({ productId, quantity, custom, slot })),
   });
-  ui.pendingOrder = null;
+  clearPendingPickup();
   return order;
 }
 
@@ -3999,6 +3858,7 @@ async function loadOrders() {
   ui.orderLoad = load;
   ui.ordersLoading = true;
   ui.ordersError = '';
+  if (isOrderPage(currentPath())) render({ keepScroll: true });
   try {
     const orders = [];
     let cursor = null;
@@ -4023,15 +3883,10 @@ async function loadOrders() {
 }
 
 // js/pages/checkout.js
-// The checkout shows the saved default address in one compact line.
-// Edit or add delivery locations under My Information > Saved Addresses.
-const addressLine = (address) =>
-  [address.street, address.barangay, address.city].filter(Boolean).join(', ');
-
-function pickupContactSection(account) {
+function pickupContactSection() {
   const c = store.checkout;
-  const contactName = c.name || account.name || '';
-  const contactPhone = c.phone || account.phone || '';
+  const contactName = c.name;
+  const contactPhone = c.phone;
   const branch = pickupBranch(c.pickupBranch);
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(branch.mapQuery)}`;
   return `
@@ -4039,7 +3894,7 @@ function pickupContactSection(account) {
     <div class="checkout-address-fields">
       <div class="form-cols">
         <label>Pickup contact name
-          <input type="text" data-checkout="name" value="${escapeHtml(contactName)}" placeholder="e.g. Maria Santos" autocomplete="name" required />
+          <input type="text" data-checkout="name" maxlength="100" value="${escapeHtml(contactName)}" placeholder="e.g. Maria Santos" autocomplete="name" required />
           <span class="error-text" data-error="name"></span>
         </label>
         <label>Pickup contact number
@@ -4065,26 +3920,6 @@ function pickupContactSection(account) {
         </div>
       </div>
     </div>
-  `;
-}
-
-function pickupCourierOptions() {
-  return `
-    <section class="form-panel pickup-couriers" aria-label="Optional courier pickup">
-      <h2>Need a courier?</h2>
-      <p>You can arrange a rider to collect your order.</p>
-      <div class="pickup-courier-links">
-        <a href="https://web.lalamove.com/" target="_blank" rel="noopener noreferrer" aria-label="Visit Lalamove (opens in a new tab)">
-          <strong>Lalamove</strong>${ico('arrow', 19)}
-          <small>Arrange a pickup</small>
-        </a>
-        <a href="https://www.grab.com/ph/express/" target="_blank" rel="noopener noreferrer" aria-label="Visit GrabExpress (opens in a new tab)">
-          <strong>GrabExpress</strong>${ico('arrow', 19)}
-          <small>Arrange a pickup</small>
-        </a>
-      </div>
-      <p class="pickup-courier-note">Courier bookings and fees are handled separately with your chosen provider.</p>
-    </section>
   `;
 }
 
@@ -4116,16 +3951,16 @@ function checkout(kind) {
   if (!valid) return notFound();
 
   const c = store.checkout;
+  const schedule = kind === 'plan' ? planSchedule() : kind === 'subscription' ? subSchedule() : [];
   const s =
     kind === 'cart'
       ? cartSummary(store.cart)
       : kind === 'plan'
-        ? scheduledSummary(planSchedule(), store.plan.assignments)
+        ? scheduledSummary(schedule, store.plan.assignments)
         : scheduledSummary(
-          subSchedule(),
+          schedule,
           store.subscription.assignments,
           subOffer().discountRate,
-          true,
         );
 
   const hasItems = kind === 'cart' ? store.cart.length > 0 : s.filled === s.count && s.count > 0;
@@ -4173,7 +4008,7 @@ function checkout(kind) {
       ${checkoutProgress(2)}
       <form id="checkout-form" novalidate>
         <section class="form-panel">
-          ${pickupContactSection(account)}
+          ${pickupContactSection()}
           <div class="pickup-schedule">
             <div class="pickup-schedule-heading">
               ${ico('calendar', 18)}
@@ -4182,8 +4017,8 @@ function checkout(kind) {
                 <span>${kind === 'cart'
     ? 'Choose a pickup date and your preferred time window.'
     : `Scheduled pickup dates: ${kind === 'plan'
-      ? `${store.plan.days} days beginning ${displayDate(store.plan.start)}`
-      : `${subOffer().days} days beginning ${displayDate(store.subscription.start)}`}`}</span>
+      ? `${store.plan.days} days beginning ${displayDate(schedule[0].date)}`
+      : `${subOffer().days} days beginning ${displayDate(schedule[0].date)}`}`}</span>
               </div>
             </div>
             ${kind === 'cart'
@@ -4241,7 +4076,6 @@ function checkout(kind) {
             <p>Pay in cash when collecting your meals.</p>
           </div>
         </section>
-        ${pickupCourierOptions()}
         <div class="checkout-errors" role="alert" id="checkout-errors" hidden>
         </div>
         <button class="btn btn-primary checkout-submit" type="submit">
@@ -4285,7 +4119,6 @@ function checkout(kind) {
         ${summaryRows(
     kind === 'cart' ? s.subtotal : s.value,
     kind === 'subscription' ? s.savings : 0,
-    s.delivery,
     kind === 'subscription',
   )}
         ${kind === 'subscription'
@@ -4543,79 +4376,6 @@ const accountSignedOut = () => {
 `;
 };
 
-const addressManager = (account) => {
-  const editing = account.addresses.find((address) => address.id === ui.addressEditId);
-  const value = (address, field) => escapeHtml(
-    (address ? address[field] : ['name', 'phone'].includes(field) ? account[field] : '') || '',
-  );
-
-  const addressForm = (address = null) => `
-    <form id="address-form" class="account-address-form" novalidate>
-      <h2>${address ? 'Edit this address' : 'Add an address'}</h2>
-      <div class="form-cols">
-        <label>Recipient name
-          <input data-address-field="name" value="${value(address, 'name')}" placeholder="e.g. Maria Santos" autocomplete="name"/>
-          <span class="error-text" data-address-error="name"></span>
-        </label>
-        <label>Mobile number
-          <input data-address-field="phone" inputmode="tel" value="${value(address, 'phone')}" placeholder="e.g. 0917 123 4567" autocomplete="tel"/>
-          <span class="error-text" data-address-error="phone"></span>
-        </label>
-      </div>
-      <label>Address label <span class="optional">(optional)</span>
-        <input data-address-field="label" value="${value(address, 'label')}" placeholder="e.g. Home or Office"/>
-      </label>
-      <label>House / unit / street address
-        <input data-address-field="street" value="${value(address, 'street')}" placeholder="e.g. 24 Mabini Street, Unit 3B" autocomplete="address-line1" required/>
-        <span class="error-text" data-address-error="street"></span>
-      </label>
-      <label>Barangay
-        <input data-address-field="barangay" value="${value(address, 'barangay')}" placeholder="e.g. Barangay Poblacion" required/>
-        <span class="error-text" data-address-error="barangay"></span>
-      </label>
-      <label>City
-        <select data-address-field="city"><option>${CITY}</option></select>
-      </label>
-      <label class="check-row">
-        <input type="checkbox" data-address-field="makeDefault" ${address?.isDefault ? 'checked' : ''}/>
-        Set as default saved address
-      </label>
-      <div class="account-address-buttons">
-        <button type="submit" class="btn btn-primary">${address ? 'Save changes' : 'Save address'}</button>
-        <button type="button" class="btn btn-outline" data-action="address-cancel">Cancel</button>
-      </div>
-    </form>`;
-
-  return `
-<section class="address-manager" id="addresses">
-  <h3>Saved Addresses</h3>
-  <p class="caption">Manage your saved addresses.</p>
-  ${account.addresses.length
-    ? account.addresses.map((address) => `
-        <div class="saved-address-entry">
-          <div class="saved-address">
-            <div>
-              <strong>${escapeHtml(address.label || 'Saved address')}</strong>
-              ${address.isDefault ? '<span class="default-tag">Default</span>' : ''}
-              <br/>
-              <span>${escapeHtml([address.name, address.phone].filter(Boolean).join(' · '))}</span>
-              <br/>
-              <span>${escapeHtml(addressLine(address))}</span>
-            </div>
-            <div class="saved-address-actions">
-              <button type="button" class="link-btn" data-action="address-edit" data-id="${escapeHtml(address.id)}">Edit</button>
-              ${address.isDefault ? '' : `<button type="button" class="link-btn" data-action="address-default" data-id="${escapeHtml(address.id)}">Make default</button>`}
-              <button type="button" class="link-btn" data-action="address-remove" data-id="${escapeHtml(address.id)}">Remove</button>
-            </div>
-          </div>
-          ${editing?.id === address.id ? addressForm(address) : ''}
-        </div>`).join('')
-    : '<p class="caption">No saved addresses yet.</p>'}
-  ${ui.addressAdding ? addressForm() : `
-    <button type="button" class="btn btn-outline account-add-address" data-action="address-add">+ Add new address</button>`}
-</section>`;
-};
-
 function orderHistory(account) {
   const orders = ui.orders;
   return `
@@ -4637,7 +4397,7 @@ function orderHistory(account) {
         ${order.status === 'Ready for Pickup'
           ? '<small class="order-delivery-prompt">Has your order been collected?</small>' : ''}
         <small>Total: ${money(order.estimated_total)}</small>
-        <small>Requested pickup: ${escapeHtml(order.delivery_date || order.pickup?.date || '')} · ${escapeHtml(order.delivery_time || order.pickup?.time || '')}</small>
+        <small>Requested pickup: ${escapeHtml(order.pickup?.date || order.delivery_date || '')} · ${escapeHtml(order.pickup?.time || order.delivery_time || '')}</small>
         <small>Pickup location: ${escapeHtml(order.pickup?.locationName || GILLYS_PICKUP_LOCATION)}</small>
       </div>
       <div class="order-history-actions">
@@ -4676,9 +4436,16 @@ const accountSignedIn = (account) => {
           <strong>${escapeHtml(account.name)}</strong><br/>
           ${escapeHtml(account.email)}${account.phone ? ` · ${escapeHtml(account.phone)}` : ''}
         </p>
-        <p>
-          Pickup details and saved addresses.
-        </p>
+        <button type="button" class="btn btn-outline" data-action="contact-edit" aria-expanded="${ui.contactEditing}">
+          ${ui.contactEditing ? 'Cancel edit' : 'Edit pickup contact'}
+        </button>
+        ${ui.contactEditing ? `
+          <form id="pickup-contact-form" class="auth-form" novalidate>
+            <label>Name <input id="pickup-contact-name" name="name" autocomplete="name" maxlength="100" value="${escapeHtml(account.name)}" required /></label>
+            <label>Mobile number <input name="phone" type="tel" autocomplete="tel" value="${escapeHtml(account.phone || '')}" /></label>
+            <p class="checkout-errors" role="alert"></p>
+            <button type="submit" class="btn btn-primary">Save pickup contact</button>
+          </form>` : ''}
         ${filled
     ? `
               <div class="draft-account">
@@ -4692,7 +4459,6 @@ const accountSignedIn = (account) => {
               </div>
             `
     : ''}
-        ${addressManager(account)}
         <div class="account-actions">
           ${link('/menu', 'Browse our menu')}
           <button type="button" class="btn btn-outline" data-action="sign-out">
@@ -4837,19 +4603,15 @@ function receiptRows(order) {
 
 function receiptDetails(order) {
   const customer = order.customer || {};
-  const delivery = order.pickup || order.delivery || {};
-  const address = [delivery.street, delivery.barangay, delivery.city].filter(Boolean).join(', ');
+  const pickup = order.pickup || order.delivery || {};
   const details = {
-    name: customer.name || order.name || '',
-    phone: customer.phone || order.phone || '',
-    address: order.pickup ? (order.pickup.locationName || GILLYS_PICKUP_LOCATION) : (address || [order.street, order.barangay, order.city].filter(Boolean).join(', ')),
-    collectorType: order.pickup?.collectorType || 'self',
-    collectorName: order.pickup?.collectorName || '',
-    collectorPhone: order.pickup?.collectorPhone || '',
+    name: pickup.contactName || customer.name || order.name || '',
+    phone: pickup.contactPhone || customer.phone || order.phone || '',
+    address: pickup.locationName || GILLYS_PICKUP_LOCATION,
     email: customer.email || order.email || '',
-    date: delivery.date || order.delivery_date || '',
-    time: delivery.time || order.delivery_time || '',
-    instructions: delivery.instructions || order.instructions || '',
+    date: pickup.date || order.delivery_date || '',
+    time: pickup.time || order.delivery_time || '',
+    instructions: pickup.instructions || order.instructions || '',
   };
   return details;
 }
@@ -4865,8 +4627,7 @@ function receiptBreakdown(order) {
   const stored = order.pricing;
   const hasSnapshot = stored
     && Number.isFinite(Number(stored.itemSubtotal))
-    && Number.isFinite(Number(stored.discount))
-    && Number.isFinite(Number(stored.deliveryFee));
+    && Number.isFinite(Number(stored.discount));
 
   // Never calculate a tax amount from an unverified VAT-registration assumption.
   // Display only a separately verified tax snapshot, when one exists.
@@ -4878,22 +4639,14 @@ function receiptBreakdown(order) {
   if (hasSnapshot) {
     const itemSubtotal = round(stored.itemSubtotal);
     const discount = round(stored.discount);
-    const deliveryFee = round(stored.deliveryFee);
-    const adjustment = round(total - (itemSubtotal - discount + deliveryFee));
-    return { rows, total, itemSubtotal, discount, deliveryFee, adjustment, allItemsPriced, ...tax };
+    const adjustment = round(total - (itemSubtotal - discount));
+    return { rows, total, itemSubtotal, discount, adjustment, allItemsPriced, ...tax };
   }
 
-  // Older records lack the checkout snapshot. A simple cart can distinguish the
-  // delivery difference. Do not fabricate fees/discounts for scheduled packages.
-  if (order.kind === 'cart' && allItemsPriced) {
-    const difference = round(total - sumOfItems);
-    return { rows, total, itemSubtotal: sumOfItems, discount: 0,
-      deliveryFee: difference >= 0 ? difference : null,
-      adjustment: difference < 0 ? difference : 0, allItemsPriced, ...tax };
-  }
+  // Older records can reconcile the recorded total without inferring a fee.
   return {
     rows, total, itemSubtotal: allItemsPriced ? sumOfItems : null,
-    discount: null, deliveryFee: null,
+    discount: null,
     adjustment: allItemsPriced ? round(total - sumOfItems) : null,
     allItemsPriced,
     ...tax,
@@ -4936,7 +4689,6 @@ function receiptDocument(order) {
           <h2>Pickup schedule</h2>
           ${info.address ? `<p><strong>Pickup location:</strong> ${escapeHtml(info.address)}</p>` : ''}
           <p>${escapeHtml([info.date, info.time].filter(Boolean).join(' · ') || 'To be confirmed')}</p>
-          ${info.collectorType === 'courier' ? '<p>Collected by: Customer-arranged courier</p>' : info.collectorType === 'representative' ? `<p>Authorized collector: ${escapeHtml(info.collectorName)} ${info.collectorPhone ? '· ' + escapeHtml(info.collectorPhone) : ''}</p>` : ''}
           ${info.instructions ? `<p class="receipt-instructions">Notes: ${escapeHtml(info.instructions)}</p>` : ''}
         </div>
       </section>
@@ -4974,7 +4726,7 @@ function receiptDocument(order) {
             ? `<div class="receipt-breakdown-row receipt-discount"><span>Package discount</span><strong>−${money(breakdown.discount)}</strong></div>` : ''}
           <div class="receipt-breakdown-row"><span>Pickup</span><strong>Free</strong></div>
           ${breakdown.adjustment != null && Math.abs(breakdown.adjustment) >= 0.01
-            ? `<div class="receipt-breakdown-row"><span>${breakdown.deliveryFee == null ? 'Package adjustment' : 'Price adjustment'}</span><strong>${money(breakdown.adjustment)}</strong></div>` : ''}
+            ? `<div class="receipt-breakdown-row"><span>Price adjustment</span><strong>${money(breakdown.adjustment)}</strong></div>` : ''}
           ${breakdown.taxTreatment === 'vat-inclusive' && breakdown.taxAmount != null ? `
             <div class="receipt-breakdown-row receipt-tax"><span>VATable sales (excl. VAT)</span><strong>${money(breakdown.vatableSales)}</strong></div>
             <div class="receipt-breakdown-row"><span>12% VAT (included)</span><strong>${money(breakdown.taxAmount)}</strong></div>` : ''}
@@ -5124,12 +4876,8 @@ function information() {
 )}
     <div class="wrap faq-list">
       <section>
-        <h2>
-          Does Gilly’s deliver orders?
-        </h2>
-        <p>
-          No. Gilly’s prepares meals for customer pickup. The exact pickup address and availability must be confirmed with the restaurant before collecting an order.
-        </p>
+        <h2>Where do I pick up my order?</h2>
+        <p>Choose your pickup branch at checkout. Check My Orders for the confirmed pickup location and time before heading out.</p>
       </section>
       <section>
         <h2>
@@ -5140,9 +4888,8 @@ function information() {
         </p>
       </section>
       <section>
-        <h2>Can someone else or a courier collect my meal?</h2>
-        <p>Yes. You can provide an authorized person's contact details or arrange a courier independently. Share your order reference with the person collecting. Courier fees are separate.</p>
-        <p><a href="https://web.lalamove.com/" target="_blank" rel="noopener noreferrer">Lalamove booking</a> · <a href="https://www.grab.com/ph/express/" target="_blank" rel="noopener noreferrer">GrabExpress information</a></p>
+        <h2>What do I need to collect my order?</h2>
+        <p>Wait for your order to be marked Ready for Pickup, then bring your order reference and cash to your chosen branch.</p>
       </section>
       <section>
         <h2>
@@ -5157,7 +4904,7 @@ function information() {
           How does payment work?
         </h2>
         <p>
-          Meals are payable in cash at pickup. For third-party pickup, arrange meal payment with your collector. Courier booking and fees are separate from Gilly’s.
+          Pay in cash when you collect your order at the selected branch. Pickup is free.
         </p>
       </section>
       <section>
@@ -5261,6 +5008,31 @@ function normalizeRoute(rawRoute) {
   return route || '/';
 }
 
+const PAGE_TITLES = Object.freeze({
+  '/': "Gilly's | Home",
+  '/menu': "Gilly's | Order Meals",
+  '/build': "Gilly's | Build a Bowl",
+  '/calorie-calculator': "Gilly's | Calorie Guide",
+  '/meal-plans': "Gilly's | Meal Plans",
+  '/meal-plans/review': "Gilly's | Review Meal Plan",
+  '/subscriptions': "Gilly's | Subscriptions",
+  '/subscriptions/customize': "Gilly's | Customize Subscription",
+  '/subscriptions/review': "Gilly's | Review Subscription",
+  '/cart': "Gilly's | Your Cart",
+  '/checkout/cart': "Gilly's | Cart Checkout",
+  '/checkout/plan': "Gilly's | Meal Plan Checkout",
+  '/checkout/subscription': "Gilly's | Subscription Checkout",
+  '/order-confirmation': "Gilly's | Pickup Request",
+  '/account': "Gilly's | Account",
+  '/orders': "Gilly's | Order History",
+  '/receipt': "Gilly's | Order Summary",
+  '/signin': "Gilly's | Sign In",
+  '/signup': "Gilly's | Create Account",
+  '/forgot-password': "Gilly's | Password Help",
+  '/information': "Gilly's | Pickup and FAQs",
+  '/not-found': "Gilly's | Page Not Found",
+});
+
 const AUTH_ROUTES = { '/signin': 'signin', '/signup': 'signup', '/forgot-password': 'forgot' };
 
 function routeView(route) {
@@ -5340,11 +5112,14 @@ let toastTimer;
 function render({ scroll = false, keepScroll = false } = {}) {
   if (!root) return;
   const oldY = window.scrollY;
+  const focused = root.contains(document.activeElement) ? document.activeElement : null;
   ui.route = normalizeRoute(currentPath());
+  const routeChanged = ui.renderedRoute !== ui.route;
+  ui.renderedRoute = ui.route;
+  document.title = PAGE_TITLES[ui.route] || PAGE_TITLES['/not-found'];
   // Sign-in, sign-up and password help always open as a modal over the page.
   if (AUTH_ROUTES[ui.route] && ui.overlay?.type !== 'auth') ui.overlay = { type: 'auth', mode: AUTH_ROUTES[ui.route] };
   syncCheckoutToAccount();
-  fillCheckoutFromChoice();
 
   // Scrollable panels are rebuilt on every render; remember where they were.
   const innerScroll = {};
@@ -5354,9 +5129,13 @@ function render({ scroll = false, keepScroll = false } = {}) {
   });
 
   const overlayKey = ui.overlay ? `${ui.overlay.type}:${ui.overlay.mode || ''}` : '';
+  const overlayChanged = overlayKey !== (ui.lastOverlayKey || '');
   const overlayOpening = overlayKey && !ui.lastOverlayKey;
   const overlayClosing = !overlayKey && ui.lastOverlayKey;
-  if (overlayOpening) ui.returnFocus = focusDescriptor(document.activeElement);
+  const retainFocus = !routeChanged && !overlayChanged ? focusDescriptor(focused) : null;
+  const selection = retainFocus && typeof focused.selectionStart === 'number'
+    ? [focused.selectionStart, focused.selectionEnd] : null;
+  if (overlayOpening) ui.returnFocus = focusDescriptor(focused);
 
   root.innerHTML = `${header()}${routeView(ui.route)}${footer()}${overlay()}${toast()}`;
   fixLocalLinksAndImages();
@@ -5384,10 +5163,21 @@ function render({ scroll = false, keepScroll = false } = {}) {
     window.scrollTo({ top: oldY, behavior: 'instant' });
   }
 
-  if (ui.overlay) {
+  const focusScope = ui.overlay ? root.querySelector('[role="dialog"]') : root;
+  const restored = retainFocus ? focusScope?.querySelector(retainFocus) : null;
+  if (restored && !restored.disabled) {
+    restored.focus({ preventScroll: true });
+    if (selection) restored.setSelectionRange?.(...selection);
+  } else if (ui.overlay) {
     const first = ui.overlay.type === 'auth' ? root.querySelector('.auth-modal input') : null;
     const button = first || root.querySelector('.modal .modal-x, .cart-drawer .drawer-head button');
-    if (button) button.focus({ preventScroll: true });
+    button?.focus({ preventScroll: true });
+  } else if (routeChanged && scroll) {
+    const heading = root.querySelector('main h1');
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
   }
 }
 
@@ -5497,102 +5287,41 @@ async function submitAuth(kind, form) {
   if (firstKey) root.querySelector(`[data-auth="${firstKey}"]`)?.focus();
 }
 
-function resetCheckoutContact() {
-  Object.assign(store.checkout, {
-    accountEmail: null,
-    name: '',
-    email: '',
-    phone: '',
-    pickupBranch: 'manila',
-    addressId: null,
-    deliveryOverride: null,
-    street: '',
-    barangay: '',
-    label: '',
-    saveAddress: false,
-    makeDefault: false,
-    contactFor: '',
-  });
-}
-
-// Keeps the checkout form in step with whichever account is signed in.
 function syncCheckoutToAccount() {
   const account = getAccount();
-  if (!account) {
-    if (store.checkout.accountEmail) resetCheckoutContact();
+  if (store.checkout.accountEmail === (account?.email || null)) return;
+  Object.assign(store.checkout, {
+    accountEmail: account?.email || null,
+    name: account?.name || '',
+    phone: account?.phone || '',
+  });
+}
+
+async function submitPickupContact(form) {
+  const account = getAccount();
+  if (!account || profileSaving) return;
+  const name = form.elements.name.value.trim();
+  const phone = form.elements.phone.value.replace(/[\s-]/g, '');
+  const error = form.querySelector('[role="alert"]');
+  if (name.length < 2 || name.length > 100 || (phone && !PH_MOBILE.test(phone))) {
+    error.textContent = 'Enter your name and an 11-digit mobile number starting with 09, or leave the number blank.';
     return;
   }
-  if (store.checkout.accountEmail === account.email) return;
-  Object.assign(store.checkout, {
-    accountEmail: account.email,
-    name: account.name,
-    email: account.email,
-    phone: account.phone,
-    addressId: null,
-    deliveryOverride: null,
-    street: '',
-    barangay: '',
-    label: '',
-    saveAddress: false,
-    makeDefault: false,
-    contactFor: '',
-  });
-}
-
-// Fills name/phone from the chosen saved info so it is only typed once.
-function fillCheckoutFromChoice() {
-  const account = getAccount();
-  if (!account) return;
-  const a = checkoutDeliveryAddress(account);
-  const key = a ? `${store.checkout.addressId || a.id || 'custom'}|${a.name}|${a.phone}` : 'new';
-  if (store.checkout.contactFor === key) return;
-  store.checkout.contactFor = key;
-  Object.assign(store.checkout, {
-    name: (a && a.name) || account.name,
-    phone: (a && a.phone) || account.phone,
-  });
-}
-
-function finishCheckout() {
-  const account = getAccount();
-  if (!account) return { ok: false, general: 'Please sign in to continue' };
-  const c = store.checkout;
-  if (String(c.name || account.name || '').trim().length < 2 ||
-      !/^09\d{9}$/.test(String(c.phone || account.phone || '').replace(/[\s-]/g,''))) {
-    return { ok: false, general: 'Enter valid pickup contact details before saving.' };
-  }
-  return { ok: true };
-}
-
-async function submitAddress(form) {
-  const account = getAccount();
-  if (!account) return;
-  const values = {};
-  form.querySelectorAll('[data-address-field]').forEach((el) => {
-    values[el.dataset.addressField] = el.type === 'checkbox' ? el.checked : el.value;
-  });
-  const errors = validateAddress(values);
-  form.querySelectorAll('[data-address-error]').forEach((el) => {
-    el.textContent = errors[el.dataset.addressError] || '';
-  });
-  const firstKey = Object.keys(errors)[0];
-  if (firstKey) {
-    form.querySelector(`[data-address-field="${firstKey}"]`)?.focus();
-    return;
-  }
-  const editing = ui.addressEditId;
-  const result = editing
-    ? await updateAddress(account.email, editing, values, { makeDefault: values.makeDefault })
-    : await addAddress(account.email, values, { makeDefault: values.makeDefault });
+  error.textContent = '';
+  const button = form.querySelector('[type="submit"]');
+  button.disabled = true;
+  const result = await updateAccountRecord(account.email, record => Object.assign(record, { name, phone }));
   if (!result.ok) {
-    render({ keepScroll: true });
-    notify(result.general || 'Could not save this info');
+    error.textContent = result.general;
+    button.disabled = false;
     return;
   }
-  ui.addressEditId = null;
-  ui.addressAdding = false;
+  if (store.checkout.name === account.name) store.checkout.name = name;
+  if (store.checkout.phone === account.phone) store.checkout.phone = phone;
+  ui.contactEditing = false;
   render({ keepScroll: true });
-  notify(editing ? 'Address updated' : 'Address saved to your account');
+  root.querySelector('[data-action="contact-edit"]')?.focus();
+  notify('Pickup contact updated');
 }
 
 function closeOverlay() {
@@ -5650,7 +5379,6 @@ function openChooser(kind, slot) {
   render({ keepScroll: true });
 }
 
-let addedTimer;
 
 function cartAdd(info) {
   const fresh = makeItem(info.productId, info.custom, info.editId ? 1 : Math.min(99, Math.max(1, Number(info.quantity) || 1)));
@@ -5665,20 +5393,18 @@ function cartAdd(info) {
         : it,
     );
   } else {
-    store.cart = addOrIncrement(store.cart, fresh);
+    const next = addOrIncrement(store.cart, fresh);
+    if (next === store.cart) {
+      notify('Cart limit reached. Reduce the quantity or remove a meal before adding more.');
+      return false;
+    }
+    store.cart = next;
   }
   persist();
   ui.overlay = null;
-  if (!info.editId) {
-    ui.justAdded = info.productId;
-    clearTimeout(addedTimer);
-    addedTimer = setTimeout(() => {
-      ui.justAdded = null;
-      render({ keepScroll: true });
-    }, 1800);
-  }
   render({ keepScroll: true });
   notify(info.editId ? 'Meal updated in your cart' : 'Added to your cart', info.editId ? '' : 'view-cart');
+  return true;
 }
 
 function scheduleAdd(info) {
@@ -5738,26 +5464,31 @@ function updateSchedule(field, value) {
   render({ keepScroll: true });
 }
 
-function validateCheckout(form) {
+function validateCheckout(form, kind) {
   const values = store.checkout;
   const account = getAccount();
   const errors = {};
-  const name = String(values.name || account?.name || '').trim();
-  const phone = String(values.phone || account?.phone || '').replace(/[\s-]/g, '');
-  if (name.length < 2) errors.name = 'Enter the pickup contact name';
-  if (!/^09\d{9}$/.test(phone)) errors.phone = 'Enter an 11-digit PH mobile number starting with 09';
-  if (!account || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account.email)) errors.email = 'Sign in with a valid account';
+  const name = values.name.trim();
+  const phone = values.phone.replace(/[\s-]/g, '');
+  if (name.length < 2 || name.length > 100) errors.name = 'Enter the pickup contact name (2–100 characters)';
+  if (!PH_MOBILE.test(phone)) errors.phone = 'Enter an 11-digit PH mobile number starting with 09';
+  if (!account || !EMAIL_PATTERN.test(account.email)) errors.email = 'Sign in with a valid account';
   if (!PICKUP_BRANCHES.some((branch) => branch.id === values.pickupBranch)) errors.pickupBranch = 'Choose a Metro Manila pickup branch';
-  const kind = currentPath().split('/').pop();
   if (kind === 'cart' && (!values.date || values.date < earliestCartDate())) errors.date = 'Choose an eligible requested pickup date';
   if (kind === 'cart' && values.date && values.time && !demoCartSlots(values.date).includes(values.time)) errors.time = 'Choose an available pickup time for this date';
   if (!values.time || !BUSINESS.timeSlots.includes(values.time)) errors.time = 'Select a pickup time window';
-  values.payment = 'cash_on_pickup';
+  if (kind !== 'cart') {
+    const schedule = kind === 'plan' ? planSchedule() : subSchedule();
+    const assignments = kind === 'plan' ? store.plan.assignments : store.subscription.assignments;
+    if (!schedule.length || schedule[0].date < defaultStart() || schedule.some(slot => !assignments[slot.id])) {
+      errors.schedule = 'Update your pickup dates and select a meal for every scheduled slot.';
+    }
+  }
   form.querySelectorAll('[data-error]').forEach(el => { el.textContent = errors[el.dataset.error] || ''; });
   const general = form.querySelector('#checkout-errors');
   if (Object.keys(errors).length) {
     general.hidden = false;
-    general.textContent = 'Please correct the highlighted pickup details';
+    general.textContent = errors.schedule || 'Please correct the highlighted pickup details';
     form.querySelector(`[data-error="${Object.keys(errors)[0]}"]`)?.closest('label')?.querySelector('input,select')?.focus();
     return false;
   }
@@ -5891,7 +5622,7 @@ async function onAction(element, event) {
         scheduleAdd({ ...context, productId, custom });
         go(context.kind === 'plan' ? '/meal-plans' : '/subscriptions/customize');
       } else {
-        cartAdd({ productId, custom, editId: context?.editId });
+        if (!cartAdd({ productId, custom, editId: context?.editId })) break;
         if (action === 'builder-buy') { ui.cartReviewKind = 'cart'; go('/cart'); }
         else if (context?.editId) {
           ui.builderContext = null;
@@ -5965,18 +5696,19 @@ async function onAction(element, event) {
 
     case 'qty-inc':
       store.cart = store.cart.map((it) =>
-        it.id === id ? { ...it, quantity: Math.min(it.quantity + 1, 99) } : it,
+        it.id === id ? { ...it, quantity: Math.min(it.quantity + 1, BUSINESS.maxLineQuantity) } : it,
       );
       persist();
       render({ keepScroll: true });
-      refocus(`[data-action="qty-inc"][data-id="${CSS.escape(id)}"]`);
+      refocus(`[data-action="qty-inc"][data-id="${CSS.escape(id)}"]:not([disabled])`);
+      if (document.activeElement === document.body) refocus(`[data-action="qty-dec"][data-id="${CSS.escape(id)}"]`);
       break;
 
     case 'modal-qty-inc':
     case 'modal-qty-dec': {
       const info = ui.overlay;
       if (info?.type !== 'customize') break;
-      info.quantity = Math.min(99, Math.max(1, (Number(info.quantity) || 1) + (action === 'modal-qty-inc' ? 1 : -1)));
+      info.quantity = Math.min(BUSINESS.maxLineQuantity, Math.max(1, (Number(info.quantity) || 1) + (action === 'modal-qty-inc' ? 1 : -1)));
       render({ keepScroll: true });
       refocus(`[data-action="${action}"]:not([disabled])`) ;
       if (!root.contains(document.activeElement) || document.activeElement === document.body) {
@@ -6050,13 +5782,20 @@ async function onAction(element, event) {
         notify('These meals are no longer on the menu');
         break;
       }
+      let next = store.cart;
       for (const item of items) {
-        store.cart = addOrIncrement(store.cart, makeItem(
+        const updated = addOrIncrement(next, makeItem(
           item.productId,
           item.custom || defaultCustomization(),
-          Math.min(99, Math.max(1, Number(item.quantity) || 1)),
+          Math.min(BUSINESS.maxLineQuantity, Math.max(1, Math.trunc(Number(item.quantity)) || 1)),
         ));
+        if (updated === next) {
+          notify('Your cart has reached its limit. Remove some meals before reordering.');
+          return;
+        }
+        next = updated;
       }
+      store.cart = next;
       persist();
       ui.cartReviewKind = 'cart';
       go('/cart');
@@ -6073,22 +5812,21 @@ async function onAction(element, event) {
       catch (error) { notify(error.message); break; }
       ui.orderLoad = null;
       ui.ordersLoading = false;
-      ui.pendingOrder = null;
+      clearPendingPickup();
       ui.orders = [];
       ui.ordersLoaded = false;
       ui.receiptOrderId = null;
       ui.lastCodOrder = null;
+      ui.contactEditing = false;
       ui.ordersError = '';
       ui.authNext = null;
-      ui.addressEditId = null;
-      ui.addressAdding = false;
       applyDraft(fresh());
+      clearGuestDraft();
       ui.builder = freshBuild();
       ui.builderContext = null;
       ui.selectedProduct = null;
       ui.selectionContext = null;
       ui.calorieResult = null;
-      resetCheckoutContact();
       go('/');
       notify('You have signed out');
       break;
@@ -6148,57 +5886,11 @@ async function onAction(element, event) {
       restartBannerTimer();
       break;
 
-    case 'checkout-toggle-address':
-      ui.checkoutAddressEditing = !ui.checkoutAddressEditing;
+    case 'contact-edit':
+      ui.contactEditing = !ui.contactEditing;
       render({ keepScroll: true });
+      root.querySelector(ui.contactEditing ? '#pickup-contact-name' : '[data-action="contact-edit"]')?.focus();
       break;
-
-    case 'checkout-edit-once':
-      setCustomCheckoutAddress();
-      render({ keepScroll: true });
-      break;
-
-    case 'address-edit':
-      ui.addressEditId = id;
-      ui.addressAdding = false;
-      go('/account');
-      requestAnimationFrame(() =>
-        root.querySelector('#address-form')?.scrollIntoView({ block: 'center' }),
-      );
-      break;
-
-    case 'address-add':
-      ui.addressEditId = null;
-      ui.addressAdding = true;
-      render({ keepScroll: true });
-      requestAnimationFrame(() =>
-        root.querySelector('#address-form')?.scrollIntoView({ block: 'center' }),
-      );
-      break;
-
-    case 'address-cancel':
-      ui.addressEditId = null;
-      ui.addressAdding = false;
-      render({ keepScroll: true });
-      break;
-
-    case 'address-default': {
-      const account = getAccount();
-      if (!account) break;
-      const result = await setDefaultAddress(account.email, id);
-      render({ keepScroll: true });
-      if (!result.ok) notify(result.general);
-      break;
-    }
-
-    case 'address-remove': {
-      const account = getAccount();
-      if (!account) break;
-      const result = await removeAddress(account.email, id);
-      render({ keepScroll: true });
-      notify(result.ok ? 'Address removed' : result.general);
-      break;
-    }
 
     case 'toggle-password': {
       const input = element.closest('.password-wrap')?.querySelector('input');
@@ -6234,7 +5926,7 @@ async function onAction(element, event) {
       if (kind !== 'cart') {
         const summary = kind === 'plan'
           ? scheduledSummary(planSchedule(), store.plan.assignments)
-          : scheduledSummary(subSchedule(), store.subscription.assignments, subOffer().discountRate, true);
+          : scheduledSummary(subSchedule(), store.subscription.assignments, subOffer().discountRate);
         if (!summary.count || summary.filled !== summary.count) {
           notify('Finish selecting your scheduled meals before checkout');
           break;
@@ -6508,35 +6200,6 @@ root?.addEventListener('change', (event) => {
     render({ keepScroll: true });
     return;
   }
-  if (e.dataset.deliveryChoice !== undefined) {
-    if (e.value === 'custom') setCustomCheckoutAddress();
-    else {
-      store.checkout.addressId = e.value;
-      store.checkout.deliveryOverride = null;
-      store.checkout.saveAddress = false;
-    }
-    render({ keepScroll: true });
-    return;
-  }
-  if (e.dataset.saveDelivery !== undefined) {
-    store.checkout.saveAddress = e.checked;
-    return;
-  }
-  if (e.dataset.deliveryInput) {
-    store.checkout.deliveryOverride ??= {};
-    store.checkout.deliveryOverride[e.dataset.deliveryInput] = e.value;
-    const account = getAccount();
-    const address = checkoutDeliveryAddress(account);
-    const summary = root.querySelector('.checkout-current-address');
-    if (address && summary) {
-      const [nameAndPhone, street] = summary.querySelectorAll('span');
-      const label = summary.querySelector('strong');
-      if (label) label.textContent = address.label || 'Delivery address';
-      if (nameAndPhone) nameAndPhone.textContent = [address.name || account.name, address.phone || account.phone].filter(Boolean).join(' · ');
-      if (street) street.textContent = addressLine(address);
-    }
-    return;
-  }
   if (e.dataset.checkout) {
     store.checkout[e.dataset.checkout] = e.value;
     if (e.dataset.checkout === 'date') {
@@ -6546,7 +6209,7 @@ root?.addEventListener('change', (event) => {
     if (e.dataset.checkout === 'pickupBranch') {
       render({ keepScroll: true });
     }
-    // Contact and delivery fields deliberately are not persisted.
+    // Pickup contact details are kept out of meal drafts.
   }
 });
 
@@ -6568,18 +6231,13 @@ root?.addEventListener('input', (event) => {
       resultsContainer.innerHTML = menuResults(list);
     }
   }
-  if (e.dataset.deliveryInput) {
-    store.checkout.deliveryOverride ??= {};
-    store.checkout.deliveryOverride[e.dataset.deliveryInput] = e.value;
-    return;
-  }
   if (e.dataset.checkout) {
     store.checkout[e.dataset.checkout] = e.value;
     if (e.dataset.checkout === 'date') {
       store.checkout.time = '';
       render({ keepScroll: true });
     }
-    // Contact and delivery fields deliberately are not persisted.
+    // Pickup contact details are kept out of meal drafts.
   }
 });
 
@@ -6609,22 +6267,16 @@ root?.addEventListener('submit', async (event) => {
     submitAuth('forgot', event.target);
     return;
   }
-  if (event.target.id === 'address-form') {
+  if (event.target.id === 'pickup-contact-form') {
     event.preventDefault();
-    submitAddress(event.target);
+    await submitPickupContact(event.target);
     return;
   }
   if (event.target.id === 'checkout-form') {
     event.preventDefault();
-    if (ui.codSubmitting || !validateCheckout(event.target)) return;
-    const checked = finishCheckout();
-    if (!checked.ok) {
-      notify(checked.general || 'Please complete your pickup details');
-      return;
-    }
     const kind = currentPath().split('/').pop();
+    if (ui.codSubmitting || !validateCheckout(event.target, kind)) return;
     const preview = collectCodRequest(kind);
-    const pickupInfo = preview.pickup || {};
     const approved = await askCustomerConfirmation({
       title: 'Review Pickup Summary',
       message: 'Please review your meals, pickup schedule, and total.',
@@ -6644,17 +6296,9 @@ root?.addEventListener('submit', async (event) => {
       ui.lastCodOrder = order;
       ui.ordersLoaded = false;
       ui.orders = [order, ...ui.orders.filter(entry => entry.id !== order.id)];
-      ui.checkoutAddressEditing = false;
-      store.checkout.addressId = null;
-      store.checkout.deliveryOverride = null;
-      store.checkout.saveAddress = false;
-      store.checkout.date = '';
-      store.checkout.time = '';
-      store.checkout.instructions = '';
-      store.checkout.name = '';
-      store.checkout.phone = '';
-      // Start a new order after checkout, not with the just-purchased selections.
+      // Start the next pickup with fresh details and the account contact.
       const defaults = fresh();
+      store.checkout = defaults.checkout;
       if (kind === 'cart') store.cart = [];
       if (kind === 'plan') store.plan = defaults.plan;
       if (kind === 'subscription') store.subscription = defaults.subscription;
@@ -6666,6 +6310,20 @@ root?.addEventListener('submit', async (event) => {
       persist();
       go('/order-confirmation');
     } catch (error) {
+      if (error.status === 401) {
+        customerAccount = null;
+        ui.orderLoad = null;
+        ui.ordersLoading = false;
+        ui.orders = [];
+        ui.ordersLoaded = false;
+        ui.receiptOrderId = null;
+        ui.lastCodOrder = null;
+        applyDraft(fresh());
+        openAuth('signin', currentPath());
+        ui.auth.notice = 'Your session expired. Sign in again to continue your pickup request.';
+        render({ keepScroll: true });
+        return;
+      }
       if (error.status === 409) {
         await refreshTaxTreatment().catch(() => {});
         render({ keepScroll: true });
@@ -6763,15 +6421,13 @@ const FIELD_VALIDATORS = {
   },
   password: (v, el, form) => (form.id === 'signin-form' ? (v ? '' : 'Enter your password') : v.length >= 8 ? '' : 'Use at least 8 characters'),
   confirm: (v, el, form) => (v && v === form.querySelector('[data-auth="password"]')?.value ? '' : 'Passwords do not match'),
-  street: (v) => (v.trim().length >= 6 ? '' : 'Enter a full street and house or unit address'),
-  barangay: (v) => (v.trim().length >= 2 ? '' : 'Enter your barangay'),
   date: (v) => (v && v >= earliestCartDate() ? '' : 'Choose an eligible pickup date'),
   time: (v) => (v ? '' : 'Select a pickup time window'),
 };
-const VALIDATED_FORMS = '#signin-form, #signup-form, #forgot-form, #checkout-form, #address-form, #calorie-form';
+const VALIDATED_FORMS = '#signin-form, #signup-form, #forgot-form, #reset-password-form, #checkout-form, #calorie-form';
 
 function fieldKey(el) {
-  return el.dataset.auth || el.dataset.checkout || el.dataset.addressField || null;
+  return el.dataset.auth || el.dataset.checkout || null;
 }
 
 function validateFieldMessage(el) {

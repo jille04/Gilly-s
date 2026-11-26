@@ -25,7 +25,7 @@ const output = [
   "const macroKeys = ['kcal', 'protein', 'carbs', 'fat'];",
   definitions,
   'export { BUSINESS, PICKUP_BRANCHES, OFFERS, INGREDIENT_GROUPS, mealById, mealTotal, mealPriceDetails,',
-  '  defaultCustomization, portionOptions, proteinOptions, toppings, sauces, createSchedule, datePlus,',
+  '  defaultCustomization, portionOptions, proteinOptions, toppings, sauces, createSchedule, defaultStart,',
   '  manilaNow, demoCartSlots, pesoRound, orderTaxParts };',
   '',
 ].join('\n');

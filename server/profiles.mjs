@@ -1,8 +1,7 @@
 import { HttpError } from './http.mjs';
 import { data } from './supabase.mjs';
-import { UUID } from './orders.mjs';
 
-const columns = 'name,phone,addresses,version';
+const columns = 'name,phone,version';
 const phonePattern = /^(?:09[0-9]{9})?$/;
 
 function clean(value, max) {
@@ -15,25 +14,10 @@ function clean(value, max) {
 function profileDetails(body) {
   const name = clean(body.name, 100);
   const phone = clean(body.phone, 11);
-  if (name.length < 2 || !phonePattern.test(phone) || !Array.isArray(body.addresses) || body.addresses.length > 30) {
-    throw new HttpError(400, 'Check your name, phone number, and saved addresses.');
+  if (name.length < 2 || !phonePattern.test(phone)) {
+    throw new HttpError(400, 'Check your pickup name and mobile number.');
   }
-  const ids = new Set();
-  const addresses = body.addresses.map(address => {
-    if (!address || typeof address.id !== 'string' || !UUID.test(address.id) || ids.has(address.id)) {
-      throw new HttpError(400, 'A saved address is invalid.');
-    }
-    ids.add(address.id);
-    const street = clean(address.street, 200);
-    const barangay = clean(address.barangay, 100);
-    const recipientPhone = clean(address.phone, 11);
-    if (street.length < 6 || barangay.length < 2 || !phonePattern.test(recipientPhone)) {
-      throw new HttpError(400, 'Check the saved street, barangay, and phone number.');
-    }
-    return { id: address.id, label: clean(address.label, 30), name: clean(address.name, 100),
-      phone: recipientPhone, street, barangay, city: 'City of Manila', isDefault: address.isDefault === true };
-  });
-  return { name, phone, addresses };
+  return { name, phone };
 }
 
 export async function profile(env, customer) {
@@ -44,7 +28,7 @@ export async function profile(env, customer) {
   return {
     email: user.email,
     ...(row || { name: metadataName.length >= 2 ? metadataName : 'Customer',
-      phone: phonePattern.test(metadataPhone) ? metadataPhone : '', addresses: [], version: 0 }),
+      phone: phonePattern.test(metadataPhone) ? metadataPhone : '', version: 0 }),
   };
 }
 

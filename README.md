@@ -1,6 +1,6 @@
 # Gilly’s on Cloudflare Pages
 
-The website in `public/` uses Cloudflare Pages Functions for Supabase Auth, profiles, pickup requests, and the staff dashboard. Orders are saved with their original price breakdown and a pending status. Only staff can confirm a request. Older browser-only summaries stay on the device and are visible to the same customer after signing in. Customers who used the browser-only build need to register a Supabase account.
+The website in `public/` uses Cloudflare Pages Functions for Supabase Auth, profiles, pickup requests, and the staff dashboard. Orders are saved with their original price breakdown and a pending status. Only staff can confirm a request. All orders are for pickup and are paid in cash at the selected branch. Older browser-only summaries stay on the device and are visible to the same customer after signing in. Customers who used the browser-only build need to register a Supabase account.
 
 ## Configure secrets
 

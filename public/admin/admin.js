@@ -383,7 +383,7 @@
     return `${niceDate} · ${friendlyIngredient(parts[2])}`;
   }
   function orderModal(o) {
-    const customer=o.customer||{}; const delivery=o.pickup||o.delivery||{}; const status=orderStatus(o);
+    const customer=o.customer||{}; const pickup=o.pickup||o.delivery||{}; const status=orderStatus(o);
     const history=Array.isArray(o.status_history)?o.status_history:[{ status, changedAt:o.created_at }];
     const rows=(o.items||[]).map(i=>{
       const q=Math.max(1,Number(i.quantity)||1); const line=Number(i.estimatedLineTotal);
@@ -395,7 +395,7 @@
     return `<div class="ga-modal-backdrop" data-admin-action="close-backdrop"><article class="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-detail-title">
       <header class="ga-modal-head"><div><p class="ga-eyebrow">ORDER DETAILS · PICKUP</p><h2 id="ga-detail-title">${esc(ref(o))}</h2><p>${esc(typeLabel(o))} · ${esc(dateText(o.created_at))}</p></div><button type="button" class="ga-close" data-admin-action="close" aria-label="Close order details">×</button></header>
       <div class="ga-modal-scroll"><div class="ga-details-grid"><section><h3>Customer information</h3><p><b>${esc(customer.name||'—')}</b></p><p>${esc(customer.email||'—')}</p><p>${esc(customer.phone||'—')}</p></section>
-        <section><h3>Pickup information</h3><p>${esc(delivery.locationName||"Taft Avenue Building, 2222 Taft Avenue, Malate, City of Manila, Metro Manila 1004, Philippines")}</p><p>Date: ${esc(delivery.date||'—')}</p><p>Time: ${esc(delivery.time||'—')}</p><p>Pickup contact: ${esc(delivery.contactName||customer.name||'—')} · ${esc(delivery.contactPhone||customer.phone||'—')}</p>${delivery.collectorType==='courier'?'<p>Customer-arranged courier</p>':delivery.collectorType==='representative'?`<p>Authorized collector: ${esc(delivery.collectorName||'—')} ${esc(delivery.collectorPhone||'')}</p>`:''}<p>Notes: ${esc(delivery.instructions||'None')}</p></section></div>
+        <section><h3>Pickup information</h3><p>${esc(pickup.locationName||"Taft Avenue Building, 2222 Taft Avenue, Malate, City of Manila, Metro Manila 1004, Philippines")}</p><p>Date: ${esc(pickup.date||'—')}</p><p>Time: ${esc(pickup.time||'—')}</p><p>Pickup contact: ${esc(pickup.contactName||customer.name||'—')} · ${esc(pickup.contactPhone||customer.phone||'—')}</p><p>Notes: ${esc(pickup.instructions||'None')}</p></section></div>
       <h3>Items ordered (${itemCount(o)})</h3>${table(['Meal / customizations','Qty','Unit price','Line total'],rows)}
       <h3>Payment breakdown</h3>${priceRows(o)}
       <div class="ga-details-grid"><section><h3>Order status</h3>${pill(status)}
