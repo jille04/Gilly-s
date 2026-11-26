@@ -26,8 +26,10 @@ async function request(env, path, { method = 'GET', body, token, admin = false, 
   if (prefer) headers.set('Prefer', prefer);
   const response = await fetch(base + path, {
     method, headers, body: body === undefined ? undefined : JSON.stringify(body),
-    redirect: 'error', signal: AbortSignal.timeout(10_000),
+    redirect: 'manual', signal: AbortSignal.timeout(10_000),
   });
+  // Workers supports manual redirects. Never forward a key to a new URL.
+  if (response.status >= 300 && response.status < 400) throw new Error('Unexpected Supabase redirect.');
   const data = await response.text();
   const parsed = data ? JSON.parse(data) : null;
   if (!response.ok) throw new SupabaseError(response.status, parsed);
